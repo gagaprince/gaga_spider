@@ -54,6 +54,12 @@ export class Chapter {
   @Column({ name: 'downloaded_at', type: 'datetime', nullable: true })
   downloadedAt: Date;
 
+  @Column({ name: 'published_at', type: 'datetime', nullable: true })
+  publishedAt: Date;
+
+  @Column({ type: 'json', nullable: true })
+  extra: Record<string, any>;
+
   @CreateDateColumn()
   createdAt: Date;
 

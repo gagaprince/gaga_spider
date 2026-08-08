@@ -98,6 +98,8 @@ CREATE TABLE chapters (
   page_count      INT            NOT NULL DEFAULT 0 COMMENT '图片数(漫画)',
   is_downloaded   TINYINT        NOT NULL DEFAULT 0 COMMENT '内容是否已下载',
   downloaded_at   DATETIME       NULL     COMMENT '下载时间',
+  published_at    DATETIME       NULL     COMMENT '源站原始发布时间',
+  extra           JSON           NULL     COMMENT '扩展元数据(缩略图/爱心数等)',
   created_at      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_resource_site_order (resource_id, source_site_id, order_index),
