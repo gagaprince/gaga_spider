@@ -30,3 +30,7 @@ yarn-error.log*
 
 # OS
 Thumbs.db
+
+# Database connection (敏感信息,不提交)
+docs/database/connection.local.*
+*.local.cnf
