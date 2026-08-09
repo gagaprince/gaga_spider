@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 
 interface ChapterImageItem {
@@ -33,6 +33,8 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
   const [error, setError] = useState('');
   const [visibleCount, setVisibleCount] = useState(10);
 
+  const loadingRef = useRef<number | null>(null);
+
   const loadChapter = useCallback((id: number) => {
     setLoading(true);
     setError('');
@@ -45,7 +47,14 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
           setError('未找到该章节');
           setData(null);
         } else {
-          setData(d);
+          // 去重: 同一 orderIndex 只保留一条
+          const seen = new Set<number>();
+          const deduped = d.images.filter((img) => {
+            if (seen.has(img.orderIndex)) return false;
+            seen.add(img.orderIndex);
+            return true;
+          });
+          setData({ ...d, images: deduped });
         }
       })
       .catch((e) => setError(e.message))
@@ -53,6 +62,9 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
   }, []);
 
   useEffect(() => {
+    // 防止 StrictMode 双重调用导致重复请求
+    if (loadingRef.current === chapterId) return;
+    loadingRef.current = chapterId;
     loadChapter(chapterId);
   }, [chapterId, loadChapter]);
 

@@ -136,7 +136,7 @@ CREATE TABLE chapter_images (
   status      VARCHAR(20)    NOT NULL DEFAULT 'pending' COMMENT 'pending/downloaded/failed',
   created_at  DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_chapter_order (chapter_id, order_index),
+  UNIQUE INDEX uk_chapter_order (chapter_id, order_index),
   CONSTRAINT fk_ci_chapter FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='章节图片内容';
 

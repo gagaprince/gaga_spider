@@ -548,11 +548,14 @@ export class WebtoonsScraperService {
       return 0;
     }
 
-    // Insert image records (orIgnore for re-runs)
+    // 清除旧记录,避免重复抓取产生重复图片
+    await this.chapterImageRepo.delete({ chapterId: chapter.id });
+
+    // Insert image records
     const imageEntities: Partial<ChapterImage>[] = images.map((img) => ({
       chapterId: chapter.id, orderIndex: img.orderIndex, sourceUrl: img.imageUrl, status: 'pending',
     }));
-    await this.chapterImageRepo.createQueryBuilder().insert().into(ChapterImage).values(imageEntities).orIgnore().execute();
+    await this.chapterImageRepo.createQueryBuilder().insert().into(ChapterImage).values(imageEntities).execute();
 
     // Download images to local storage
     let downloadedCount = 0;
