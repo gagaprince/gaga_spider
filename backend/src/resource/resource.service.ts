@@ -39,10 +39,11 @@ export class ResourceService {
     keyword?: string;
     scrapeStatus?: string;
     category?: string;
+    completion?: string;
     page?: number;
     pageSize?: number;
   }) {
-    const { type, keyword, scrapeStatus, category, page = 1, pageSize = 20 } = query;
+    const { type, keyword, scrapeStatus, category, completion, page = 1, pageSize = 20 } = query;
     const qb = this.resourceRepo.createQueryBuilder('r');
 
     if (type) {
@@ -53,6 +54,11 @@ export class ResourceService {
     }
     if (category) {
       qb.andWhere('r.category = :category', { category });
+    }
+    if (completion === 'completed') {
+      qb.andWhere('r.status = :status', { status: 'completed' });
+    } else if (completion === 'ongoing') {
+      qb.andWhere('r.status = :status', { status: 'ongoing' });
     }
 
     if (scrapeStatus === 'scraped') {

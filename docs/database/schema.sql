@@ -63,6 +63,7 @@ CREATE TABLE resource_sources (
   raw_data            JSON           NULL     COMMENT '源站原始抓取数据快照',
   last_scraped_at     DATETIME       NULL     COMMENT '最近抓取时间',
   scrape_status       VARCHAR(20)    NOT NULL DEFAULT 'idle' COMMENT 'idle/running/success/failed',
+  is_completed        TINYINT        NOT NULL DEFAULT 0 COMMENT '源站是否完结(0连载/1完结),定时任务据此判断是否抓取更新',
   last_chapter_order  INT            NOT NULL DEFAULT 0 COMMENT '增量抓取:上次抓到的章节序号',
   created_at          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

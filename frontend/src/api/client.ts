@@ -74,6 +74,7 @@ export const api = {
     keyword?: string;
     scrapeStatus?: string;
     category?: string;
+    completion?: string;
     page?: number;
     pageSize?: number;
   }) => {
@@ -82,6 +83,7 @@ export const api = {
     if (params?.keyword) search.set('keyword', params.keyword);
     if (params?.scrapeStatus) search.set('scrapeStatus', params.scrapeStatus);
     if (params?.category) search.set('category', params.category);
+    if (params?.completion) search.set('completion', params.completion);
     if (params?.page) search.set('page', String(params.page));
     if (params?.pageSize) search.set('pageSize', String(params.pageSize));
     const qs = search.toString();

@@ -11,6 +11,7 @@ export class ResourceController {
     @Query('keyword') keyword?: string,
     @Query('scrapeStatus') scrapeStatus?: string,
     @Query('category') category?: string,
+    @Query('completion') completion?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -19,6 +20,7 @@ export class ResourceController {
       keyword,
       scrapeStatus,
       category,
+      completion,
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 20,
     });

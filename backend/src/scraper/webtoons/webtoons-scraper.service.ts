@@ -172,7 +172,7 @@ export class WebtoonsScraperService {
     this.logger.log(`[任务 ${taskId}] 漫画: ${detail.title}, 作者: ${detail.authors.join(', ')}`);
 
     const resource = await this.saveResource(detail);
-    await this.saveResourceSource(site, resource, titleNo, listUrl);
+    await this.saveResourceSource(site, resource, titleNo, listUrl, detail.status);
     await this.saveAuthors(resource, detail.authors);
     await this.saveCategory(resource, detail.genre);
 
@@ -485,7 +485,7 @@ export class WebtoonsScraperService {
     return resource;
   }
 
-  private async saveResourceSource(site: SourceSite, resource: Resource, titleNo: number, listUrl: string): Promise<void> {
+  private async saveResourceSource(site: SourceSite, resource: Resource, titleNo: number, listUrl: string, status: string): Promise<void> {
     let rs = await this.resourceSourceRepo.findOne({
       where: { sourceSiteId: site.id, sourceId: String(titleNo) },
     });
@@ -497,6 +497,7 @@ export class WebtoonsScraperService {
     }
     rs.lastScrapedAt = new Date();
     rs.scrapeStatus = 'running';
+    rs.isCompleted = status === 'completed' ? 1 : 0;
     await this.resourceSourceRepo.save(rs);
   }
 

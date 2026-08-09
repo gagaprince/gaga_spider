@@ -18,6 +18,7 @@ export function BookshelfPage() {
   const [keyword, setKeyword] = useState('');
   const [scrapeFilter, setScrapeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [completionFilter, setCompletionFilter] = useState('');
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [showScrape, setShowScrape] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
@@ -32,9 +33,10 @@ export function BookshelfPage() {
     try {
       const resp = await api.getResources({
         keyword: keyword || undefined,
-        scrapeStatus: scrapeFilter || undefined,
-        category: categoryFilter || undefined,
-        page,
+       scrapeStatus: scrapeFilter || undefined,
+       category: categoryFilter || undefined,
+        completion: completionFilter || undefined,
+       page,
         pageSize,
       });
       setResources(resp.items);
@@ -44,7 +46,7 @@ export function BookshelfPage() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, scrapeFilter, categoryFilter, page]);
+  }, [keyword, scrapeFilter, categoryFilter, completionFilter, page]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -128,9 +130,18 @@ export function BookshelfPage() {
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff', maxWidth: 150 }}
         >
           <option value="">全部分类</option>
-          {categories.map((c) => (
-            <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
-          ))}
+         {categories.map((c) => (
+           <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
+         ))}
+       </select>
+        <select
+          value={completionFilter}
+          onChange={(e) => { setCompletionFilter(e.target.value); setPage(1); }}
+          style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
+        >
+          <option value="">全部状态</option>
+          <option value="ongoing">连载中</option>
+          <option value="completed">已完结</option>
         </select>
         <span style={{ color: '#888', fontSize: 14 }}>共 {total} 部</span>
         <div style={{ flex: 1 }} />

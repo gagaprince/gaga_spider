@@ -92,8 +92,17 @@ export class WebtoonsParser {
       .filter((a) => a.length > 0 && a.length < 50);
 
     const detailInfoText = $('.detail_info').text().trim();
-    const isUp = detailInfoText.includes('UP');
-    const isCompleted = /completed|完結/i.test(detailInfoText);
+
+    // 优先使用 day_info 的 class 标记判断完结/连载状态
+    // <p class="day_info"><span class="txt_ico_completed"></span>完結</p>
+    // <p class="day_info"><span class="txt_ico_up">更新</span>在週日更新</p>
+    const dayInfoHasCompleted = $('p.day_info').find('.txt_ico_completed').length > 0
+      || $('p.day_info').text().includes('完結');
+    const dayInfoHasUp = $('p.day_info').find('.txt_ico_up').length > 0
+      || $('p.day_info').text().includes('更新');
+
+    const isCompleted = dayInfoHasCompleted || /completed|完結/i.test(detailInfoText);
+    const isUp = dayInfoHasUp || detailInfoText.includes('UP');
     const status = isCompleted ? 'completed' : isUp ? 'ongoing' : 'unknown';
 
     const updateDayMatch = detailInfoText.match(/UP\s+(?:EVERY\s+)?(\w+)/i);

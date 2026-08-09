@@ -39,6 +39,9 @@ export class ResourceSource {
   @Column({ name: 'scrape_status', default: 'idle' })
   scrapeStatus: string;
 
+  @Column({ name: 'is_completed', type: 'tinyint', default: 0 })
+  isCompleted: number;
+
   @Column({ name: 'last_chapter_order', default: 0 })
   lastChapterOrder: number;
 
