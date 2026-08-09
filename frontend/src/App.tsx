@@ -1,18 +1,16 @@
-import { useState } from 'react';
-import { BookshelfPage } from './components/BookshelfPage';
-import { TaskPage } from './components/TaskPage';
-import { SettingsPage } from './components/SettingsPage';
+import { NavLink, Outlet } from 'react-router-dom';
 
 type PageId = 'bookshelf' | 'tasks' | 'settings';
 
-const menuItems: { id: PageId; label: string; icon: string }[] = [
-  { id: 'bookshelf', label: '书架管理', icon: '📚' },
-  { id: 'tasks', label: '任务管理', icon: '📋' },
-  { id: 'settings', label: '设置', icon: '⚙️' },
+const menuItems: { id: PageId; label: string; icon: string; path: string }[] = [
+  { id: 'bookshelf', label: '书架管理', icon: '📚', path: '/' },
+  { id: 'tasks', label: '任务管理', icon: '📋', path: '/tasks' },
+  { id: 'settings', label: '设置', icon: '⚙️', path: '/settings' },
 ];
 
 function App() {
-  const [activePage, setActivePage] = useState<PageId>('bookshelf');
+  const currentLabel = menuItems.find((m) => window.location.pathname.startsWith(m.path) && m.path !== '/')?.label
+    || menuItems[0].label;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f5f6fa' }}>
@@ -46,41 +44,34 @@ function App() {
 
         {/* Menu */}
         <nav style={{ flex: 1, padding: '16px 12px' }}>
-          {menuItems.map((item) => {
-            const active = activePage === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActivePage(item.id)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: 'none',
-                  borderRadius: 8,
-                  background: active ? '#6c5ce7' : 'transparent',
-                  color: active ? '#fff' : 'rgba(255,255,255,0.6)',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: active ? 600 : 400,
-                  marginBottom: 4,
-                  transition: 'all 0.2s',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <span style={{ fontSize: 18 }}>{item.icon}</span>
-                {item.label}
-              </button>
-            );
-          })}
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.path}
+              end={item.path === '/'}
+              style={({ isActive }) => ({
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                width: '100%',
+                padding: '12px 16px',
+                border: 'none',
+                borderRadius: 8,
+                background: isActive ? '#6c5ce7' : 'transparent',
+                color: isActive ? '#fff' : 'rgba(255,255,255,0.6)',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: isActive ? 600 : 400,
+                marginBottom: 4,
+                transition: 'all 0.2s',
+                textAlign: 'left' as const,
+                textDecoration: 'none',
+              })}
+            >
+              <span style={{ fontSize: 18 }}>{item.icon}</span>
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
 
         {/* Footer */}
@@ -117,15 +108,13 @@ function App() {
               color: '#2d3436',
             }}
           >
-            {menuItems.find((m) => m.id === activePage)?.label}
+            {currentLabel}
           </h1>
         </header>
 
         {/* Page content */}
         <main style={{ flex: 1, overflow: 'auto' }}>
-          {activePage === 'bookshelf' && <BookshelfPage />}
-          {activePage === 'tasks' && <TaskPage />}
-          {activePage === 'settings' && <SettingsPage />}
+          <Outlet />
         </main>
       </div>
     </div>

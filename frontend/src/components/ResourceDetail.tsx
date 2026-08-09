@@ -1,10 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ChapterReader } from './ChapterReader';
+import { useParams, useNavigate } from 'react-router-dom';
 
-interface ResourceDetailProps {
-  resourceId: number;
-  onBack: () => void;
-}
 
 interface DetailData {
   id: number;
@@ -34,13 +30,15 @@ interface DetailData {
   categories: any[];
 }
 
-export function ResourceDetail({ resourceId, onBack }: ResourceDetailProps) {
-  const [data, setData] = useState<DetailData | null>(null); 
-  const [readingChapterId, setReadingChapterId] = useState<number | null>(null);
+export function ResourceDetail() {
+  const { resourceId } = useParams<{ resourceId: string }>();
+  const navigate = useNavigate();
+  const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (!resourceId) return;
     setLoading(true);
     fetch(`/api/resources/${resourceId}`)
       .then((r) => {
@@ -79,25 +77,15 @@ export function ResourceDetail({ resourceId, onBack }: ResourceDetailProps) {
   const statusColors: Record<string, string> = {
     ongoing: '#27ae60',
     completed: '#3498db',
-   unknown: '#999',
- };
-
-  if (readingChapterId !== null) {
-    return (
-      <ChapterReader
-        chapterId={readingChapterId}
-        onBack={() => setReadingChapterId(null)}
-        onNavigate={(id) => setReadingChapterId(id)}
-      />
-    );
-  }
+    unknown: '#999',
+  };
 
   return (
     <div>
       {/* Back button */}
       <div style={{ padding: '16px 24px' }}>
         <button
-          onClick={onBack}
+          onClick={() => navigate(-1)}
           style={{
             border: 'none',
             background: 'none',
@@ -281,7 +269,7 @@ export function ResourceDetail({ resourceId, onBack }: ResourceDetailProps) {
          {data.chapters.map((ch, idx) => (
            <div
              key={ch.id}
-              onClick={() => setReadingChapterId(ch.id)}
+              onClick={() => navigate(`/resources/${resourceId}/chapters/${ch.id}`)}
              style={{
                display: 'flex',
                alignItems: 'center',

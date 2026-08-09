@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
 interface ChapterImageItem {
@@ -21,13 +22,10 @@ interface ChapterData {
   nextChapter: { id: number; orderIndex: number; title: string } | null;
 }
 
-interface ChapterReaderProps {
-  chapterId: number;
-  onBack: () => void;
-  onNavigate: (chapterId: number) => void;
-}
-
-export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderProps) {
+export function ChapterReader() {
+  const { chapterId: chapterIdStr, resourceId } = useParams<{ chapterId: string; resourceId: string }>();
+  const chapterId = Number(chapterIdStr);
+  const navigate = useNavigate();
   const [data, setData] = useState<ChapterData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -62,6 +60,7 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
   }, []);
 
   useEffect(() => {
+    if (!chapterId) return;
     // 防止 StrictMode 双重调用导致重复请求
     if (loadingRef.current === chapterId) return;
     loadingRef.current = chapterId;
@@ -95,7 +94,7 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
     return (
       <div style={{ textAlign: 'center', padding: 120 }}>
         <div style={{ color: '#e74c3c', marginBottom: 16 }}>{error || '未找到章节'}</div>
-        <button onClick={onBack} style={btnStyle}>返回</button>
+        <button onClick={() => navigate(-1)} style={btnStyle}>返回</button>
       </div>
     );
   }
@@ -120,7 +119,7 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
           gap: 12,
         }}
       >
-        <button onClick={onBack} style={topBtnStyle}>
+        <button onClick={() => navigate(-1)} style={topBtnStyle}>
           ← 返回
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -182,7 +181,7 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
       >
         {data.prevChapter ? (
           <button
-            onClick={() => onNavigate(data.prevChapter!.id)}
+            onClick={() => navigate(`/resources/${resourceId}/chapters/${data.prevChapter!.id}`)}
             style={{ ...navBtnStyle, flex: 1 }}
           >
             ← 上一章
@@ -196,7 +195,7 @@ export function ChapterReader({ chapterId, onBack, onNavigate }: ChapterReaderPr
         )}
         {data.nextChapter ? (
           <button
-            onClick={() => onNavigate(data.nextChapter!.id)}
+            onClick={() => navigate(`/resources/${resourceId}/chapters/${data.nextChapter!.id}`)}
             style={{ ...navBtnStyle, flex: 1, textAlign: 'right' }}
           >
             下一章 →

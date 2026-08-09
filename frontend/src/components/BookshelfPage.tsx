@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type Resource } from '../api/client';
 import { ScrapeModal } from './ScrapeModal';
-import { ResourceDetail } from './ResourceDetail';
 import { BatchScrapeModal } from './BatchScrapeModal';
 
 interface CategoryInfo {
@@ -10,6 +10,7 @@ interface CategoryInfo {
 }
 
 export function BookshelfPage() {
+  const navigate = useNavigate();
   const [resources, setResources] = useState<Resource[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -21,7 +22,6 @@ export function BookshelfPage() {
   const [showScrape, setShowScrape] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
   const [toast, setToast] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [discovering, setDiscovering] = useState(false);
   const [scrapingIds, setScrapingIds] = useState<Set<number>>(new Set());
 
@@ -102,15 +102,6 @@ export function BookshelfPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  if (selectedId !== null) {
-    return (
-      <ResourceDetail
-        resourceId={selectedId}
-        onBack={() => setSelectedId(null)}
-      />
-    );
-  }
-
   return (
     <div>
       {/* Toolbar */}
@@ -179,7 +170,7 @@ export function BookshelfPage() {
                 key={r.id}
                 resource={r}
                 scraping={scrapingIds.has(r.id)}
-                onClick={() => setSelectedId(r.id)}
+                onClick={() => navigate(`/resources/${r.id}`)}
                 onScrape={() => handleScrapeOne(r)}
               />
             ))}
