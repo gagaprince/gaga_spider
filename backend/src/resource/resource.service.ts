@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as fs from 'fs';
@@ -14,6 +14,8 @@ import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class ResourceService {
+  private readonly logger = new Logger(ResourceService.name);
+
   constructor(
     @InjectRepository(Resource)
     private readonly resourceRepo: Repository<Resource>,
@@ -213,18 +215,44 @@ export class ResourceService {
     const stream = fs.createWriteStream(filepath);
     doc.pipe(stream);
 
+    let addedCount = 0;
+    let skippedCount = 0;
+
     for (let i = 0; i < allImages.length; i++) {
       const { localPath } = allImages[i];
       const absPath = path.join(this.settingsService.resourcePath, localPath.replace('/resourceFiles/', ''));
-      if (!fs.existsSync(absPath)) continue;
+      if (!fs.existsSync(absPath)) {
+        skippedCount++;
+        continue;
+      }
 
-      const img = (doc as any).openImage(absPath);
-      const maxWidth = 595; // A4 width in pt
-      const scale = Math.min(1, maxWidth / img.width);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      doc.addPage({ size: [w, h] });
-      doc.image(img, 0, 0, { width: w, height: h });
+      // pdfkit 仅支持 JPEG / PNG,跳过 GIF 等不支持的格式
+      const ext = path.extname(absPath).toLowerCase();
+      if (ext === '.gif' || ext === '.webp' || ext === '.bmp' || ext === '.svg') {
+        this.logger.warn(`跳过不支持的图片格式: ${absPath}`);
+        skippedCount++;
+        continue;
+      }
+
+      try {
+        const img = (doc as any).openImage(absPath);
+        const maxWidth = 595;
+        const scale = Math.min(1, maxWidth / img.width);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        doc.addPage({ size: [w, h] });
+        doc.image(img, 0, 0, { width: w, height: h });
+        addedCount++;
+      } catch (e) {
+        this.logger.warn(`跳过无法解析的图片: ${absPath} - ${e instanceof Error ? e.message : e}`);
+        skippedCount++;
+      }
+    }
+
+    this.logger.log(`PDF 导出完成: ${resource.title} - 成功 ${addedCount} 张, 跳过 ${skippedCount} 张`);
+
+    if (addedCount === 0) {
+      throw new Error('没有可导出的图片(均为不支持的格式或文件不存在)');
     }
 
     doc.end();
