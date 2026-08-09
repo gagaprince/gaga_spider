@@ -548,73 +548,121 @@ export class WebtoonsScraperService {
       return 0;
     }
 
-    // 清除旧记录,避免重复抓取产生重复图片
-    await this.chapterImageRepo.delete({ chapterId: chapter.id });
+    // 查询已有图片记录,按 orderIndex 索引
+    const existingImages = await this.chapterImageRepo.find({ where: { chapterId: chapter.id } });
+    const existingMap = new Map(existingImages.map((e) => [e.orderIndex, e]));
 
-    // Insert image records
-    const imageEntities: Partial<ChapterImage>[] = images.map((img) => ({
-      chapterId: chapter.id, orderIndex: img.orderIndex, sourceUrl: img.imageUrl, status: 'pending',
-    }));
-    await this.chapterImageRepo.createQueryBuilder().insert().into(ChapterImage).values(imageEntities).execute();
-
-    // Download images to local storage
     let downloadedCount = 0;
+    let skippedCount = 0;
+    const toInsert: Partial<ChapterImage>[] = [];
+
     for (const img of images) {
       this.checkCancelled(taskId);
-      const localPath = await this.downloadChapterImage(
-        titleNo,
-        chapter.orderIndex,
-        img.orderIndex,
-        img.imageUrl,
-      );
+
+      // 先检查本地文件是否已存在
+      const { filepath, webPath } = this.computeImagePath(titleNo, chapter.orderIndex, img.orderIndex, img.imageUrl);
+
+      if (existsSync(filepath)) {
+        // 本地文件已存在,跳过下载,只补全/更新 DB 记录
+        skippedCount++;
+        const existing = existingMap.get(img.orderIndex);
+        if (existing) {
+          if (existing.status !== 'downloaded' || existing.localPath !== webPath) {
+            await this.chapterImageRepo.update(existing.id, {
+              localPath: webPath, status: 'downloaded', sourceUrl: img.imageUrl,
+            });
+          }
+        } else {
+          toInsert.push({
+            chapterId: chapter.id, orderIndex: img.orderIndex, sourceUrl: img.imageUrl,
+            localPath: webPath, status: 'downloaded',
+          });
+        }
+        existingMap.delete(img.orderIndex);
+        continue;
+      }
+
+      // 本地文件不存在,需要下载
+      const localPath = await this.downloadChapterImage(filepath, webPath, img.imageUrl);
 
       if (localPath) {
-        await this.chapterImageRepo.update(
-          { chapterId: chapter.id, orderIndex: img.orderIndex },
-          { localPath, status: 'downloaded', fileSize: 0 },
-        );
         downloadedCount++;
+        const existing = existingMap.get(img.orderIndex);
+        if (existing) {
+          await this.chapterImageRepo.update(existing.id, {
+            localPath: webPath, status: 'downloaded', sourceUrl: img.imageUrl,
+          });
+        } else {
+          toInsert.push({
+            chapterId: chapter.id, orderIndex: img.orderIndex, sourceUrl: img.imageUrl,
+            localPath: webPath, status: 'downloaded',
+          });
+        }
       } else {
-        await this.chapterImageRepo.update(
-          { chapterId: chapter.id, orderIndex: img.orderIndex },
-          { status: 'failed' },
-        );
+        const existing = existingMap.get(img.orderIndex);
+        if (existing) {
+          await this.chapterImageRepo.update(existing.id, { status: 'failed' });
+        } else {
+          toInsert.push({
+            chapterId: chapter.id, orderIndex: img.orderIndex, sourceUrl: img.imageUrl,
+            status: 'failed',
+          });
+        }
       }
+      existingMap.delete(img.orderIndex);
+    }
+
+    // 批量插入新增记录
+    if (toInsert.length > 0) {
+      await this.chapterImageRepo.createQueryBuilder().insert().into(ChapterImage).values(toInsert).execute();
+    }
+
+    // 删除本次解析中不存在的残留记录
+    if (existingMap.size > 0) {
+      await this.chapterImageRepo.delete(existingImages.filter((e) => existingMap.has(e.orderIndex)).map((e) => e.id));
     }
 
     chapter.pageCount = images.length;
-    chapter.isDownloaded = downloadedCount === images.length ? 1 : 0;
+    chapter.isDownloaded = (downloadedCount + skippedCount) === images.length ? 1 : 0;
     chapter.downloadedAt = new Date();
     await this.chapterRepo.save(chapter);
 
     this.logger.log(
-      `[任务 ${taskId}] 章节 ${chapter.title}: ${downloadedCount}/${images.length} 张图片已下载`,
+      `[任务 ${taskId}] 章节 ${chapter.title}: 新下载 ${downloadedCount}, 跳过 ${skippedCount}, 共 ${images.length} 张`,
     );
-    return downloadedCount;
+    return downloadedCount + skippedCount;
   }
 
-  private async downloadChapterImage(
+  private computeImagePath(
     titleNo: number,
     episodeNo: number,
     orderIndex: number,
     imageUrl: string,
-  ): Promise<string | null> {
-    if (!imageUrl) return null;
-
+  ): { filepath: string; webPath: string } {
+    const ext = extname(new URL(imageUrl).pathname).split('?')[0] || '.jpg';
+    const filename = `${String(orderIndex).padStart(4, '0')}${ext}`;
     const dir = join(
       this.settingsService.resourcePath,
       'images',
       String(titleNo),
       String(episodeNo),
     );
+    const filepath = join(dir, filename);
+    const webPath = `/resourceFiles/images/${titleNo}/${episodeNo}/${filename}`;
+    return { filepath, webPath };
+  }
+
+  private async downloadChapterImage(
+    filepath: string,
+    webPath: string,
+    imageUrl: string,
+  ): Promise<string | null> {
+    if (!imageUrl) return null;
+
+    const dir = join(filepath, '..');
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-
-    const ext = extname(new URL(imageUrl).pathname).split('?')[0] || '.jpg';
-    const filename = `${String(orderIndex).padStart(4, '0')}${ext}`;
-    const filepath = join(dir, filename);
-    const webPath = `/resourceFiles/images/${titleNo}/${episodeNo}/${filename}`;
 
     if (existsSync(filepath)) {
       return webPath;
