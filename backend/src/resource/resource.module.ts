@@ -11,6 +11,7 @@ import { ResourceAuthor } from '../entities/resource-author.entity';
 import { Category } from '../entities/category.entity';
 import { ResourceCategory } from '../entities/resource-category.entity';
 import { SourceSite } from '../entities/source-site.entity';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SourceSite } from '../entities/source-site.entity';
       ResourceCategory,
       SourceSite,
     ]),
+    SettingsModule,
   ],
   controllers: [ResourceController],
   providers: [ResourceService],

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ResourceService } from './resource.service';
 
 @Controller('resources')
@@ -37,5 +37,10 @@ export class ResourceController {
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.resourceService.findOne(id);
+  }
+
+  @Post(':id/export-pdf')
+  exportPdf(@Param('id', ParseIntPipe) id: number) {
+    return this.resourceService.exportPdf(id);
   }
 }

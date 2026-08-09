@@ -90,6 +90,11 @@ export const api = {
 
  getResource: (id: number) => request<any>(`/resources/${id}`),
 
+  exportPdf: (id: number) =>
+    request<{ pdfPath: string }>(`/resources/${id}/export-pdf`, {
+      method: 'POST',
+    }),
+
   getChapterImages: (chapterId: number) =>
     request<{
       id: number;

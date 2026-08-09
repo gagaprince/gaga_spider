@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as fs from 'fs';
+import * as path from 'path';
+import PDFDocument from 'pdfkit';
 import { Resource } from '../entities/resource.entity';
 import { ResourceSource } from '../entities/resource-source.entity';
 import { Chapter } from '../entities/chapter.entity';
 import { ChapterImage } from '../entities/chapter-image.entity';
 import { Author } from '../entities/author.entity';
 import { Category } from '../entities/category.entity';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class ResourceService {
@@ -23,6 +27,7 @@ export class ResourceService {
     private readonly authorRepo: Repository<Author>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async findAll(query: {
@@ -168,6 +173,71 @@ export class ResourceService {
       prevChapter,
       nextChapter,
     };
+  }
+
+  async exportPdf(resourceId: number): Promise<{ pdfPath: string }> {
+    const resource = await this.resourceRepo.findOne({ where: { id: resourceId } });
+    if (!resource) throw new Error('资源不存在');
+
+    const chapters = await this.chapterRepo.find({
+      where: { resourceId },
+      order: { orderIndex: 'ASC' },
+    });
+    if (chapters.length === 0) throw new Error('该资源没有章节,无法导出');
+
+    // 收集所有已下载的本地图片路径
+    const allImages: { chapterTitle: string; localPath: string }[] = [];
+    for (const chapter of chapters) {
+      const images = await this.chapterImageRepo.find({
+        where: { chapterId: chapter.id, status: 'downloaded' },
+        order: { orderIndex: 'ASC' },
+      });
+      for (const img of images) {
+        if (img.localPath) {
+          allImages.push({ chapterTitle: chapter.title, localPath: img.localPath });
+        }
+      }
+    }
+    if (allImages.length === 0) throw new Error('没有已下载的图片,请先抓取');
+
+    // 输出路径: resourceFiles/pdfs/{resourceId}.pdf
+    const pdfDir = path.join(this.settingsService.resourcePath, 'pdfs');
+    if (!fs.existsSync(pdfDir)) {
+      fs.mkdirSync(pdfDir, { recursive: true });
+    }
+    const filename = `${resourceId}.pdf`;
+    const filepath = path.join(pdfDir, filename);
+    const webPath = `/resourceFiles/pdfs/${filename}`;
+
+    const doc = new PDFDocument({ autoFirstPage: false });
+    const stream = fs.createWriteStream(filepath);
+    doc.pipe(stream);
+
+    for (let i = 0; i < allImages.length; i++) {
+      const { localPath } = allImages[i];
+      const absPath = path.join(this.settingsService.resourcePath, localPath.replace('/resourceFiles/', ''));
+      if (!fs.existsSync(absPath)) continue;
+
+      const img = (doc as any).openImage(absPath);
+      const maxWidth = 595; // A4 width in pt
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      doc.addPage({ size: [w, h] });
+      doc.image(img, 0, 0, { width: w, height: h });
+    }
+
+    doc.end();
+
+    await new Promise<void>((resolve, reject) => {
+      stream.on('finish', () => resolve());
+      stream.on('error', reject);
+    });
+
+    resource.pdfPath = webPath;
+    await this.resourceRepo.save(resource);
+
+    return { pdfPath: webPath };
   }
 
   private async getAuthors(resourceId: number) {

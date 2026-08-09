@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
 
 
 interface DetailData {
@@ -14,6 +15,7 @@ interface DetailData {
   rating: number | null;
   chapterCount: number;
   isComplete: number;
+  pdfPath: string | null;
   extra: Record<string, any> | null;
   sources: any[];
   chapters: {
@@ -36,6 +38,9 @@ export function ResourceDetail() {
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [pdfPath, setPdfPath] = useState<string | null>(null);
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     if (!resourceId) return;
@@ -235,12 +240,63 @@ export function ResourceDetail() {
             </div>
           )}
 
-          {/* Source */}
-          {data.sources.length > 0 && (
-            <div style={{ marginTop: 12, fontSize: 12, color: '#aaa' }}>
-              来源: {data.sources[0].sourceUrl}
-            </div>
-          )}
+         {/* Source */}
+         {data.sources.length > 0 && (
+           <div style={{ marginTop: 12, fontSize: 12, color: '#aaa' }}>
+             来源: {data.sources[0].sourceUrl}
+           </div>
+         )}
+
+          {/* PDF Export */}
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={async () => {
+                setExporting(true);
+                setExportError('');
+                try {
+                  const result = await api.exportPdf(Number(resourceId));
+                  setPdfPath(result.pdfPath);
+                  setData({ ...data, pdfPath: result.pdfPath });
+                } catch (e: any) {
+                  setExportError(e.message || '导出失败');
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              disabled={exporting}
+              style={{
+                border: 'none',
+                background: exporting ? '#a29bfe' : '#6c5ce7',
+                color: '#fff',
+                padding: '8px 20px',
+                borderRadius: 8,
+                cursor: exporting ? 'wait' : 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {exporting ? '正在导出...' : '📄 导出 PDF'}
+            </button>
+
+            {(pdfPath || data.pdfPath) && (
+              <a
+                href={pdfPath || data.pdfPath}
+                download
+                style={{
+                  color: '#6c5ce7',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                下载 PDF ↓
+              </a>
+            )}
+
+            {exportError && (
+              <span style={{ color: '#e74c3c', fontSize: 13 }}>{exportError}</span>
+            )}
+          </div>
         </div>
       </div>
 

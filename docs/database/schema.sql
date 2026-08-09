@@ -41,6 +41,7 @@ CREATE TABLE resources (
   chapter_count    INT            NOT NULL DEFAULT 0 COMMENT '总章节数',
   is_complete      TINYINT        NOT NULL DEFAULT 0 COMMENT '内容是否已抓全',
   category         VARCHAR(50)    NULL     COMMENT '主分类(冗余字段,便于筛选)',
+  pdf_path         VARCHAR(500)   NULL     COMMENT '导出 PDF 的本地路径',
   extra            JSON           NULL     COMMENT '扩展元数据',
   created_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

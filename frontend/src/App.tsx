@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 type PageId = 'bookshelf' | 'tasks' | 'settings';
 
@@ -9,7 +9,8 @@ const menuItems: { id: PageId; label: string; icon: string; path: string }[] = [
 ];
 
 function App() {
-  const currentLabel = menuItems.find((m) => window.location.pathname.startsWith(m.path) && m.path !== '/')?.label
+  const location = useLocation();
+  const currentLabel = menuItems.find((m) => m.path !== '/' && location.pathname.startsWith(m.path))?.label
     || menuItems[0].label;
 
   return (

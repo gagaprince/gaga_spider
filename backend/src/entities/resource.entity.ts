@@ -55,6 +55,9 @@ export class Resource {
   @Column({ type: "varchar", length: 50, nullable: true })
   category: string | null;
 
+  @Column({ type: "varchar", name: "pdf_path", length: 500, nullable: true })
+  pdfPath: string | null;
+
   @Column({ type: 'json', nullable: true })
   extra: Record<string, any>;
 
