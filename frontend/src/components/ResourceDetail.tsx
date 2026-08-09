@@ -243,7 +243,7 @@ export function ResourceDetail() {
          {/* Source */}
          {data.sources.length > 0 && (
            <div style={{ marginTop: 12, fontSize: 12, color: '#aaa', display: 'flex', alignItems: 'center', gap: 8 }}>
-             <span>来源: {data.sources[0].sourceUrl}</span>
+             <span>来源: <a href={data.sources[0].sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#6c5ce7', textDecoration: 'none' }}>{data.sources[0].sourceUrl}</a></span>
              {data.sources[0].isCompleted === 1 && (
                <span style={{ background: '#3498db', color: '#fff', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
                  源站已完结
