@@ -25,7 +25,7 @@ export class ScrapeLog {
   @Column({ type: 'json', nullable: true })
   context: Record<string, any>;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @ManyToOne(() => ScrapeTask, (task) => task.logs, { onDelete: 'CASCADE' })

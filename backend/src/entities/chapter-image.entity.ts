@@ -32,10 +32,10 @@ export class ChapterImage {
   @Column({ default: 'pending' })
   status: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @ManyToOne(() => Chapter, (chapter) => chapter.images, { onDelete: 'CASCADE' })

@@ -42,10 +42,10 @@ export class ResourceSource {
   @Column({ name: 'last_chapter_order', default: 0 })
   lastChapterOrder: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @ManyToOne(() => Resource, (resource) => resource.sources, { onDelete: 'CASCADE' })
