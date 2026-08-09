@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
+import * as os from 'os';
 import PDFDocument from 'pdfkit';
 import { Resource } from '../entities/resource.entity';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -187,69 +189,135 @@ export class ResourceService {
     });
     if (chapters.length === 0) throw new Error('该资源没有章节,无法导出');
 
-    // 收集所有已下载的本地图片路径
-    const allImages: { chapterTitle: string; localPath: string }[] = [];
+    // 按章节收集已下载的图片路径
+    const chapterImages: { chapterTitle: string; localPaths: string[] }[] = [];
     for (const chapter of chapters) {
       const images = await this.chapterImageRepo.find({
         where: { chapterId: chapter.id, status: 'downloaded' },
         order: { orderIndex: 'ASC' },
       });
-      for (const img of images) {
-        if (img.localPath) {
-          allImages.push({ chapterTitle: chapter.title, localPath: img.localPath });
-        }
+      const localPaths = images.map((img) => img.localPath).filter(Boolean) as string[];
+      if (localPaths.length > 0) {
+        chapterImages.push({ chapterTitle: chapter.title, localPaths });
       }
     }
-    if (allImages.length === 0) throw new Error('没有已下载的图片,请先抓取');
+    if (chapterImages.length === 0) throw new Error('没有已下载的图片,请先抓取');
 
     // 输出路径: resourceFiles/pdfs/{resourceId}.pdf
     const pdfDir = path.join(this.settingsService.resourcePath, 'pdfs');
     if (!fs.existsSync(pdfDir)) {
       fs.mkdirSync(pdfDir, { recursive: true });
     }
-    const filename = `${resourceId}.pdf`;
+    // 文件名使用漫画标题,清理文件系统非法字符
+    const safeTitle = resource.title.replace(/[\/\\:*?"<>|]/g, '_').trim() || `resource_${resourceId}`;
+    const filename = `${safeTitle}.pdf`;
     const filepath = path.join(pdfDir, filename);
-    const webPath = `/resourceFiles/pdfs/${filename}`;
+    const webPath = `/resourceFiles/pdfs/${encodeURIComponent(filename)}`;
 
     const doc = new PDFDocument({ autoFirstPage: false });
     const stream = fs.createWriteStream(filepath);
     doc.pipe(stream);
 
     let addedCount = 0;
+    let convertedCount = 0;
     let skippedCount = 0;
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gaga-pdf-'));
 
-    for (let i = 0; i < allImages.length; i++) {
-      const { localPath } = allImages[i];
-      const absPath = path.join(this.settingsService.resourcePath, localPath.replace('/resourceFiles/', ''));
-      if (!fs.existsSync(absPath)) {
-        skippedCount++;
-        continue;
-      }
+    // 按章节排版: 每个章节的图片垂直堆叠在一页上,章节间强制另起一页
+    const pageWidth = 595; // A4 宽度 (pt)
+    const maxPageHeight = 14400; // PDF 单页最大高度 (200 inch)
 
-      // pdfkit 仅支持 JPEG / PNG,跳过 GIF 等不支持的格式
-      const ext = path.extname(absPath).toLowerCase();
-      if (ext === '.gif' || ext === '.webp' || ext === '.bmp' || ext === '.svg') {
-        this.logger.warn(`跳过不支持的图片格式: ${absPath}`);
-        skippedCount++;
-        continue;
-      }
+    interface ImgEntry { img: any; w: number; h: number; }
 
-      try {
-        const img = (doc as any).openImage(absPath);
-        const maxWidth = 595;
-        const scale = Math.min(1, maxWidth / img.width);
-        const w = img.width * scale;
-        const h = img.height * scale;
-        doc.addPage({ size: [w, h] });
-        doc.image(img, 0, 0, { width: w, height: h });
-        addedCount++;
-      } catch (e) {
-        this.logger.warn(`跳过无法解析的图片: ${absPath} - ${e instanceof Error ? e.message : e}`);
-        skippedCount++;
+    // 输出一组图片到一页
+    const flushPage = (items: ImgEntry[]) => {
+      if (items.length === 0) return;
+      const totalHeight = items.reduce((sum, e) => sum + e.h, 0);
+      doc.addPage({ size: [pageWidth, totalHeight] });
+      let y = 0;
+      for (const entry of items) {
+        doc.image(entry.img, 0, y, { width: entry.w, height: entry.h });
+        y += entry.h;
       }
+      addedCount += items.length;
+    };
+
+    try {
+      let imgIdx = 0;
+      for (const chapter of chapterImages) {
+        // 收集当前章节所有图片
+        const chapterEntries: ImgEntry[] = [];
+        // webtoons 每章第一张图为广告图,导出时跳过
+        for (const localPath of chapter.localPaths.slice(1)) {
+          const absPath = path.join(this.settingsService.resourcePath, localPath.replace('/resourceFiles/', ''));
+          if (!fs.existsSync(absPath)) {
+            skippedCount++;
+            continue;
+          }
+
+          let imgPath = absPath;
+          const ext = path.extname(absPath).toLowerCase();
+
+          if (ext !== '.jpg' && ext !== '.jpeg' && ext !== '.png') {
+            const tmpPng = path.join(tmpDir, `conv_${imgIdx}.png`);
+            try {
+              execFileSync('sips', ['-s', 'format', 'png', absPath, '--out', tmpPng], {
+                stdio: 'pipe',
+                timeout: 30000,
+              });
+              imgPath = tmpPng;
+              convertedCount++;
+            } catch (e) {
+              this.logger.warn(`格式转换失败,跳过: ${absPath}`);
+              skippedCount++;
+              continue;
+            }
+          }
+
+          try {
+            const img = (doc as any).openImage(imgPath);
+            const scale = Math.min(1, pageWidth / img.width);
+            chapterEntries.push({ img, w: img.width * scale, h: img.height * scale });
+          } catch (e) {
+            this.logger.warn(`无法解析图片,跳过: ${imgPath} - ${e instanceof Error ? e.message : e}`);
+            skippedCount++;
+          }
+          imgIdx++;
+        }
+
+        // 按最大页高分页输出当前章节
+        let pageItems: ImgEntry[] = [];
+        let pageHeight = 0;
+        for (const entry of chapterEntries) {
+          // 单张图超过最大页高时,单独成页
+          if (entry.h > maxPageHeight) {
+            flushPage(pageItems);
+            pageItems = [];
+            pageHeight = 0;
+            const scaleH = maxPageHeight / entry.h;
+            doc.addPage({ size: [pageWidth, maxPageHeight] });
+            doc.image(entry.img, 0, 0, { width: entry.w * scaleH, height: maxPageHeight });
+            addedCount++;
+            continue;
+          }
+
+          if (pageHeight + entry.h > maxPageHeight) {
+            flushPage(pageItems);
+            pageItems = [];
+            pageHeight = 0;
+          }
+
+          pageItems.push(entry);
+          pageHeight += entry.h;
+        }
+        flushPage(pageItems);
+        // 章节结束,下一章节自动另起一页
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
 
-    this.logger.log(`PDF 导出完成: ${resource.title} - 成功 ${addedCount} 张, 跳过 ${skippedCount} 张`);
+    this.logger.log(`PDF 导出完成: ${resource.title} - 成功 ${addedCount} 张(其中 ${convertedCount} 张格式转换), 跳过 ${skippedCount} 张`);
 
     if (addedCount === 0) {
       throw new Error('没有可导出的图片(均为不支持的格式或文件不存在)');
