@@ -61,6 +61,12 @@ export class WebtoonsScraperService {
   }
 
   async scrapeOne(titleNo: number, maxChapters = 0): Promise<ScrapeResult> {
+    // 停止同 titleNo 正在运行的任务
+    const stopped = await this.taskService.stopRunningTasks(undefined, titleNo);
+    if (stopped.length > 0) {
+      this.logger.log(`已停止 ${stopped.length} 个旧任务,重新开始抓取 titleNo=${titleNo}`);
+    }
+
     const site = await this.ensureSourceSite();
     const task = await this.taskService.create({
       sourceSiteId: site.id,
@@ -70,6 +76,12 @@ export class WebtoonsScraperService {
   }
 
   async scrapeByResourceId(resourceId: number, maxChapters = 0): Promise<ScrapeResult> {
+    // 停止该资源正在运行的任务
+    const stopped = await this.taskService.stopRunningTasks(resourceId);
+    if (stopped.length > 0) {
+      this.logger.log(`已停止 ${stopped.length} 个旧任务,重新开始抓取 resourceId=${resourceId}`);
+    }
+
     const site = await this.ensureSourceSite();
     const rs = await this.resourceSourceRepo.findOne({
       where: { resourceId, sourceSiteId: site.id },
@@ -87,6 +99,12 @@ export class WebtoonsScraperService {
   }
 
   async scrapeByResourceIdAsync(resourceId: number, maxChapters = 0): Promise<{ taskId: number }> {
+    // 停止该资源正在运行的任务
+    const stopped = await this.taskService.stopRunningTasks(resourceId);
+    if (stopped.length > 0) {
+      this.logger.log(`已停止 ${stopped.length} 个旧任务,重新开始抓取 resourceId=${resourceId}`);
+    }
+
     const site = await this.ensureSourceSite();
     const rs = await this.resourceSourceRepo.findOne({
       where: { resourceId, sourceSiteId: site.id },
@@ -123,8 +141,13 @@ export class WebtoonsScraperService {
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(`[任务 ${taskId}] 抓取失败: ${msg}`);
-      await this.taskService.markFailed(taskId, msg);
+      // 被用户/新任务停止的不要标记为 failed
+      if (this.taskService.isCancelled(taskId)) {
+        this.logger.log(`[任务 ${taskId}] 任务已停止`);
+      } else {
+        this.logger.error(`[任务 ${taskId}] 抓取失败: ${msg}`);
+        await this.taskService.markFailed(taskId, msg);
+      }
       throw err;
     }
   }

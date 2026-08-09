@@ -99,6 +99,29 @@ export class TaskService {
     this.runningAbortControllers.set(id, true);
   }
 
+  async stopRunningTasks(resourceId?: number, titleNo?: number): Promise<number[]> {
+    const qb = this.taskRepo
+      .createQueryBuilder('t')
+      .where('t.status IN (:...statuses)', { statuses: [TaskStatus.RUNNING, TaskStatus.PENDING] });
+
+    if (resourceId) {
+      qb.andWhere('t.resource_id = :resourceId', { resourceId });
+    }
+    if (titleNo) {
+      qb.andWhere("JSON_EXTRACT(t.config, '$.titleNo') = :titleNo", { titleNo });
+    }
+
+    const tasks = await qb.getMany();
+    const stoppedIds: number[] = [];
+    for (const task of tasks) {
+      this.logger.log(`停止运行中任务 #${task.id} (resourceId=${task.resourceId})`);
+      await this.markCancelled(task.id);
+      await this.log(task.id, 'info', '因重新发起抓取而被停止');
+      stoppedIds.push(task.id);
+    }
+    return stoppedIds;
+  }
+
   isCancelled(id: number): boolean {
     return this.runningAbortControllers.get(id) === true;
   }
