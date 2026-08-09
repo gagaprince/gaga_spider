@@ -88,9 +88,28 @@ export const api = {
     return request<ResourceListResponse>(`/resources${qs ? `?${qs}` : ''}`);
   },
 
-  getResource: (id: number) => request<any>(`/resources/${id}`),
+ getResource: (id: number) => request<any>(`/resources/${id}`),
 
-  getCategories: () => request<{ name: string; count: number }[]>('/resources/categories/list'),
+  getChapterImages: (chapterId: number) =>
+    request<{
+      id: number;
+      resourceId: number;
+      orderIndex: number;
+      title: string;
+      pageCount: number;
+      isDownloaded: number;
+      images: {
+        id: number;
+        orderIndex: number;
+        sourceUrl: string;
+        localPath: string | null;
+        status: string;
+      }[];
+      prevChapter: { id: number; orderIndex: number; title: string } | null;
+      nextChapter: { id: number; orderIndex: number; title: string } | null;
+    }>(`/resources/chapters/${chapterId}/images`),
+
+ getCategories: () => request<{ name: string; count: number }[]>('/resources/categories/list'),
 
   scrapeWebtoons: (titleNo: number, maxChapters?: number) =>
     request<ScrapeResult>('/scraper/webtoons/scrape', {

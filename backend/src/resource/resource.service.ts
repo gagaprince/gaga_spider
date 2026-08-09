@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Resource } from '../entities/resource.entity';
 import { ResourceSource } from '../entities/resource-source.entity';
 import { Chapter } from '../entities/chapter.entity';
+import { ChapterImage } from '../entities/chapter-image.entity';
 import { Author } from '../entities/author.entity';
 import { Category } from '../entities/category.entity';
 
@@ -16,6 +17,8 @@ export class ResourceService {
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(Chapter)
     private readonly chapterRepo: Repository<Chapter>,
+    @InjectRepository(ChapterImage)
+    private readonly chapterImageRepo: Repository<ChapterImage>,
     @InjectRepository(Author)
     private readonly authorRepo: Repository<Author>,
     @InjectRepository(Category)
@@ -123,8 +126,48 @@ export class ResourceService {
       .where('r.category IS NOT NULL')
       .groupBy('r.category')
       .orderBy('count', 'DESC')
-      .getRawMany();
-    return result.map((r: any) => ({ name: r.category, count: Number(r.count) }));
+    .getRawMany();
+   return result.map((r: any) => ({ name: r.category, count: Number(r.count) }));
+ }
+
+  async getChapterWithImages(chapterId: number) {
+    const chapter = await this.chapterRepo.findOne({ where: { id: chapterId } });
+    if (!chapter) return null;
+
+    const images = await this.chapterImageRepo.find({
+      where: { chapterId },
+      order: { orderIndex: 'ASC' },
+    });
+
+    const siblings = await this.chapterRepo.find({
+      where: { resourceId: chapter.resourceId },
+      order: { orderIndex: 'ASC' },
+    });
+    const idx = siblings.findIndex((s) => s.id === chapterId);
+    const prevChapter = idx > 0
+      ? { id: siblings[idx - 1].id, orderIndex: siblings[idx - 1].orderIndex, title: siblings[idx - 1].title }
+      : null;
+    const nextChapter = idx < siblings.length - 1
+      ? { id: siblings[idx + 1].id, orderIndex: siblings[idx + 1].orderIndex, title: siblings[idx + 1].title }
+      : null;
+
+    return {
+      id: chapter.id,
+      resourceId: chapter.resourceId,
+      orderIndex: chapter.orderIndex,
+      title: chapter.title,
+      pageCount: chapter.pageCount,
+      isDownloaded: chapter.isDownloaded,
+      images: images.map((img) => ({
+        id: img.id,
+        orderIndex: img.orderIndex,
+        sourceUrl: img.sourceUrl,
+        localPath: img.localPath,
+        status: img.status,
+      })),
+      prevChapter,
+      nextChapter,
+    };
   }
 
   private async getAuthors(resourceId: number) {

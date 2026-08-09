@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ChapterReader } from './ChapterReader';
 
 interface ResourceDetailProps {
   resourceId: number;
@@ -34,7 +35,8 @@ interface DetailData {
 }
 
 export function ResourceDetail({ resourceId, onBack }: ResourceDetailProps) {
-  const [data, setData] = useState<DetailData | null>(null);
+  const [data, setData] = useState<DetailData | null>(null); 
+  const [readingChapterId, setReadingChapterId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -77,8 +79,18 @@ export function ResourceDetail({ resourceId, onBack }: ResourceDetailProps) {
   const statusColors: Record<string, string> = {
     ongoing: '#27ae60',
     completed: '#3498db',
-    unknown: '#999',
-  };
+   unknown: '#999',
+ };
+
+  if (readingChapterId !== null) {
+    return (
+      <ChapterReader
+        chapterId={readingChapterId}
+        onBack={() => setReadingChapterId(null)}
+        onNavigate={(id) => setReadingChapterId(id)}
+      />
+    );
+  }
 
   return (
     <div>
@@ -266,17 +278,20 @@ export function ResourceDetail({ resourceId, onBack }: ResourceDetailProps) {
             border: '1px solid #eee',
           }}
         >
-          {data.chapters.map((ch, idx) => (
-            <div
-              key={ch.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '12px 16px',
-                borderBottom: idx < data.chapters.length - 1 ? '1px solid #f0f0f0' : 'none',
-                fontSize: 14,
-              }}
+         {data.chapters.map((ch, idx) => (
+           <div
+             key={ch.id}
+              onClick={() => setReadingChapterId(ch.id)}
+             style={{
+               display: 'flex',
+               alignItems: 'center',
+               gap: 12,
+               padding: '12px 16px',
+               borderBottom: idx < data.chapters.length - 1 ? '1px solid #f0f0f0' : 'none',
+               fontSize: 14,
+               cursor: 'pointer',
+               transition: 'background 0.15s',
+             }}
             >
               <span
                 style={{

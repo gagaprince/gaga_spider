@@ -29,6 +29,11 @@ export class ResourceController {
     return this.resourceService.listCategories();
   }
 
+  @Get('chapters/:chapterId/images')
+  getChapterImages(@Param('chapterId', ParseIntPipe) chapterId: number) {
+    return this.resourceService.getChapterWithImages(chapterId);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.resourceService.findOne(id);
