@@ -5,13 +5,28 @@ import { WebtoonsScraperService } from './webtoons/webtoons-scraper.service';
 export class ScraperController {
   constructor(private readonly scraperService: WebtoonsScraperService) {}
 
+  @Post('webtoons/discover')
+  async discover() {
+    const result = await this.scraperService.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   @Post('webtoons/scrape')
   async scrapeOne(
     @Body('titleNo') titleNo: number,
     @Body('maxChapters') maxChapters?: number,
   ) {
-    const result = await this.scraperService.scrapeOne(
-      titleNo,
+    const result = await this.scraperService.scrapeOne(titleNo, maxChapters || 0);
+    return { success: true, data: result };
+  }
+
+  @Post('webtoons/scrape-resource')
+  async scrapeByResource(
+    @Body('resourceId') resourceId: number,
+    @Body('maxChapters') maxChapters?: number,
+  ) {
+    const result = await this.scraperService.scrapeByResourceIdAsync(
+      resourceId,
       maxChapters || 0,
     );
     return { success: true, data: result };

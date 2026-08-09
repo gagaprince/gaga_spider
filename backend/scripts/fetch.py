@@ -3,11 +3,23 @@
 import sys
 import json
 import urllib.request
+import urllib.parse
 import gzip
 import io
 
+def encode_url(url):
+    """URL-encode non-ASCII characters in URL path while preserving query params."""
+    parsed = urllib.parse.urlsplit(url)
+    # Encode the path portion (handles Chinese chars), keep query as-is
+    encoded_path = urllib.parse.quote(parsed.path, safe="/")
+    encoded = urllib.parse.urlunsplit((
+        parsed.scheme, parsed.netloc, encoded_path, parsed.query, parsed.fragment
+    ))
+    return encoded
+
 def fetch(url, headers=None, method="GET"):
     """Fetch a URL and return JSON with status, headers, body."""
+    url = encode_url(url)
     default_headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -39,6 +51,7 @@ def fetch(url, headers=None, method="GET"):
 
 def download(url, filepath, headers=None):
     """Download a binary file (image) to filepath."""
+    url = encode_url(url)
     default_headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "image/webp,image/avif,image/*,*/*;q=0.8",

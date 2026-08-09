@@ -28,8 +28,8 @@ export class Resource {
   @Column({ name: 'cover_url', length: 500, nullable: true })
   coverUrl: string;
 
-  @Column({ name: 'local_cover_path', length: 500, nullable: true })
-  localCoverPath: string;
+  @Column({ type: "varchar", name: "local_cover_path", length: 500, nullable: true })
+  localCoverPath: string | null;
 
   @Column({ default: 'unknown' })
   status: string;
@@ -51,6 +51,9 @@ export class Resource {
 
   @Column({ name: 'is_complete', default: 0 })
   isComplete: number;
+
+  @Column({ type: "varchar", length: 50, nullable: true })
+  category: string | null;
 
   @Column({ type: 'json', nullable: true })
   extra: Record<string, any>;
