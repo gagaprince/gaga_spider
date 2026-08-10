@@ -1,16 +1,27 @@
 import {
-  Controller, Delete, Get, Param, ParseIntPipe, Post, Query,
-  Inject, forwardRef,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Query,
+  Inject,
+  forwardRef,
+  NotFoundException,
 } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { WebtoonsScraperService } from '../scraper/webtoons/webtoons-scraper.service';
+import { DongmanhiScraperService } from '../scraper/dongmanhi/dongmanhi-scraper.service';
 
 @Controller('tasks')
 export class TaskController {
   constructor(
     private readonly taskService: TaskService,
     @Inject(forwardRef(() => WebtoonsScraperService))
-    private readonly scraperService: WebtoonsScraperService,
+    private readonly webtoonsScraper: WebtoonsScraperService,
+    @Inject(forwardRef(() => DongmanhiScraperService))
+    private readonly dongmanhiScraper: DongmanhiScraperService,
   ) {}
 
   @Get()
@@ -40,9 +51,34 @@ export class TaskController {
   @Post(':id/retry')
   async retry(@Param('id', ParseIntPipe) id: number) {
     const newTask = await this.taskService.retry(id);
-    this.scraperService
-      .scrapeOneWithTask(newTask.id, newTask.config?.titleNo, newTask.config?.maxChapters)
-      .catch(() => {});
+    const scraper = await this.resolveScraperByTask(id);
+
+    if (scraper instanceof DongmanhiScraperService) {
+      const config = (newTask.config ?? {}) as {
+        comicId?: string;
+        maxChapters?: number;
+      };
+      this.dongmanhiScraper
+        .scrapeOneWithTask(
+          newTask.id,
+          config.comicId ?? '',
+          config.maxChapters ?? 0,
+        )
+        .catch(() => {});
+    } else {
+      const config = (newTask.config ?? {}) as {
+        titleNo?: number;
+        maxChapters?: number;
+      };
+      this.webtoonsScraper
+        .scrapeOneWithTask(
+          newTask.id,
+          config.titleNo ?? 0,
+          config.maxChapters ?? 0,
+        )
+        .catch(() => {});
+    }
+
     return { success: true, data: newTask };
   }
 
@@ -50,5 +86,15 @@ export class TaskController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.taskService.remove(id);
     return { success: true, message: '任务已删除' };
+  }
+
+  private async resolveScraperByTask(taskId: number) {
+    const task = await this.taskService.findOne(taskId);
+    if (!task) throw new NotFoundException('任务不存在');
+    const domain = task.sourceSite?.domain;
+    if (domain === 'www.dongmanhi.com') {
+      return this.dongmanhiScraper;
+    }
+    return this.webtoonsScraper;
   }
 }

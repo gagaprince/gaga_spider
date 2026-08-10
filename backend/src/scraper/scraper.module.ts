@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WebtoonsScraperService } from './webtoons/webtoons-scraper.service';
+import { DongmanhiScraperService } from './dongmanhi/dongmanhi-scraper.service';
 import { ScraperController } from './scraper.controller';
 import { SourceSite } from '../entities/source-site.entity';
 import { Resource } from '../entities/resource.entity';
@@ -17,14 +18,21 @@ import { SettingsModule } from '../settings/settings.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      SourceSite, Resource, ResourceSource, Chapter,
-      ChapterImage, Author, ResourceAuthor, Category, ResourceCategory,
+      SourceSite,
+      Resource,
+      ResourceSource,
+      Chapter,
+      ChapterImage,
+      Author,
+      ResourceAuthor,
+      Category,
+      ResourceCategory,
     ]),
     forwardRef(() => TaskModule),
     SettingsModule,
   ],
   controllers: [ScraperController],
-  providers: [WebtoonsScraperService],
-  exports: [WebtoonsScraperService],
+  providers: [WebtoonsScraperService, DongmanhiScraperService],
+  exports: [WebtoonsScraperService, DongmanhiScraperService],
 })
 export class ScraperModule {}

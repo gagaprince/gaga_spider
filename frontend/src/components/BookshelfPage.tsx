@@ -24,6 +24,7 @@ export function BookshelfPage() {
   const [showBatch, setShowBatch] = useState(false);
   const [toast, setToast] = useState('');
   const [discovering, setDiscovering] = useState(false);
+  const [discoverSite, setDiscoverSite] = useState<'webtoons' | 'dongmanhi'>('webtoons');
   const [scrapingIds, setScrapingIds] = useState<Set<number>>(new Set());
 
   const pageSize = 20;
@@ -72,9 +73,12 @@ export function BookshelfPage() {
 
   const handleDiscover = async () => {
     setDiscovering(true);
-    showToast('正在抓取目录，请稍候...');
+    const siteName = discoverSite === 'webtoons' ? 'Webtoons' : '动漫嗨';
+    showToast(`正在抓取${siteName}目录，请稍候...`);
     try {
-      const resp = await api.discoverCatalog();
+      const resp = discoverSite === 'webtoons'
+        ? await api.discoverWebtoons()
+        : await api.discoverDongmanhi();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       setPage(1);
       fetchResources();
@@ -145,6 +149,15 @@ export function BookshelfPage() {
         </select>
         <span style={{ color: '#888', fontSize: 14 }}>共 {total} 部</span>
         <div style={{ flex: 1 }} />
+        <select
+          value={discoverSite}
+          onChange={(e) => setDiscoverSite(e.target.value as 'webtoons' | 'dongmanhi')}
+          disabled={discovering}
+          style={{ padding: '8px 8px', border: '1px solid #6c5ce7', borderRadius: 6, fontSize: 14, background: '#fff' }}
+        >
+          <option value="webtoons">Webtoons</option>
+          <option value="dongmanhi">动漫嗨</option>
+        </select>
         <button
           onClick={handleDiscover}
           disabled={discovering}

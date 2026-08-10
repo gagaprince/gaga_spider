@@ -126,16 +126,22 @@ export const api = {
 
   scrapeResource: (resourceId: number, maxChapters?: number) =>
     request<{ success: boolean; data: { taskId: number } }>(
-      '/scraper/webtoons/scrape-resource',
+      '/scraper/scrape-resource',
       {
         method: 'POST',
         body: JSON.stringify({ resourceId, maxChapters }),
       },
     ),
 
-  discoverCatalog: () =>
+  discoverWebtoons: () =>
     request<{ success: boolean; data: { discovered: number; new: number } }>(
       '/scraper/webtoons/discover',
+      { method: 'POST' },
+    ),
+
+  discoverDongmanhi: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/dongmanhi/discover',
       { method: 'POST' },
     ),
 
