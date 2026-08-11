@@ -258,6 +258,13 @@ export class ResourceService {
     if (chapterImages.length === 0)
       throw new Error('没有已下载的图片,请先抓取');
 
+    // 查询资源关联的源站,判断是否需要跳过首图(Webtoons 首图为广告)
+    const resourceSource = await this.resourceSourceRepo.findOne({
+      where: { resourceId },
+      relations: ['sourceSite'],
+    });
+    const skipFirstImage = resourceSource?.sourceSite?.domain === 'www.webtoons.com';
+
     // 输出路径: resourceFiles/pdfs/{resourceId}.pdf
     const pdfDir = path.join(this.settingsService.resourcePath, 'pdfs');
     if (!fs.existsSync(pdfDir)) {
@@ -308,8 +315,9 @@ export class ResourceService {
       for (const chapter of chapterImages) {
         // 收集当前章节所有图片
         const chapterEntries: ImgEntry[] = [];
-        // webtoons 每章第一张图为广告图,导出时跳过
-        for (const localPath of chapter.localPaths.slice(1)) {
+        // Webtoons 每章第一张图为广告图,导出时跳过;动漫嗨无需跳过
+        const paths = skipFirstImage ? chapter.localPaths.slice(1) : chapter.localPaths;
+        for (const localPath of paths) {
           const absPath = path.join(
             this.settingsService.resourcePath,
             localPath.replace('/resourceFiles/', ''),

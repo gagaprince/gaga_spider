@@ -43,14 +43,14 @@ export class HttpClient {
     url: string,
     filepath: string,
     headers?: Record<string, string>,
+    timeoutSec = 10,
   ): Promise<DownloadResult> {
     const args = [this.scriptPath, 'download', url, filepath];
-    if (headers) {
-      args.push(JSON.stringify(headers));
-    }
+    args.push(JSON.stringify(headers || {}));
+    args.push(String(timeoutSec));
     const { stdout } = await execFileAsync(this.pythonBin, args, {
       maxBuffer: 50 * 1024 * 1024,
-      timeout: 60000,
+      timeout: timeoutSec * 1000 + 5000,
     });
     return JSON.parse(stdout);
   }

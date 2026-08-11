@@ -49,7 +49,7 @@ def fetch(url, headers=None, method="GET"):
 
     return json.dumps(result, ensure_ascii=False)
 
-def download(url, filepath, headers=None):
+def download(url, filepath, headers=None, timeout=10):
     """Download a binary file (image) to filepath."""
     url = encode_url(url)
     default_headers = {
@@ -62,7 +62,7 @@ def download(url, filepath, headers=None):
 
     req = urllib.request.Request(url, headers=default_headers)
     try:
-        resp = urllib.request.urlopen(req, timeout=60)
+        resp = urllib.request.urlopen(req, timeout=timeout)
         data = resp.read()
         with open(filepath, "wb") as f:
             f.write(data)
@@ -82,4 +82,5 @@ if __name__ == "__main__":
         url = sys.argv[2]
         filepath = sys.argv[3]
         extra_headers = json.loads(sys.argv[4]) if len(sys.argv) > 4 else None
-        print(download(url, filepath, extra_headers))
+        timeout = int(sys.argv[5]) if len(sys.argv) > 5 else 10
+        print(download(url, filepath, extra_headers, timeout))

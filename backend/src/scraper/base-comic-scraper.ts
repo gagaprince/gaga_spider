@@ -32,6 +32,7 @@ export abstract class BaseComicScraper {
   }
   protected readonly COVER_MAX_RETRIES = 3;
   protected readonly COVER_RETRY_DELAY_MS = 1000;
+  protected readonly IMAGE_DOWNLOAD_TIMEOUT_S = 10;
 
   constructor(
     protected readonly sourceSiteRepo: Repository<SourceSite>,
@@ -152,9 +153,14 @@ export abstract class BaseComicScraper {
         this.logger.log(
           `下载封面: ${sourceId}, ${coverUrl} (第 ${attempt}/${this.COVER_MAX_RETRIES} 次)`,
         );
-        const result = await this.http.download(coverUrl, filepath, {
-          Referer: this.referer,
-        });
+        const result = await this.http.download(
+          coverUrl,
+          filepath,
+          {
+            Referer: this.referer,
+          },
+          this.IMAGE_DOWNLOAD_TIMEOUT_S,
+        );
 
         if (result.status === 200 && result.size && result.size > 0) {
           return webPath;
@@ -215,15 +221,24 @@ export abstract class BaseComicScraper {
 
     for (let attempt = 1; attempt <= this.COVER_MAX_RETRIES; attempt++) {
       try {
-        const result = await this.http.download(imageUrl, filepath, {
-          Referer: this.referer,
-        });
+        const result = await this.http.download(
+          imageUrl,
+          filepath,
+          { Referer: this.referer },
+          this.IMAGE_DOWNLOAD_TIMEOUT_S,
+        );
 
         if (result.status === 200 && result.size && result.size > 0) {
           return webPath;
         }
-      } catch {
-        // retry
+
+        this.logger.warn(
+          `图片下载失败(第 ${attempt} 次), status=${result.status}${result.error ? ', error=' + result.error : ''}`,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `图片下载异常(第 ${attempt} 次): ${e instanceof Error ? e.message : e}`,
+        );
       }
 
       if (attempt < this.COVER_MAX_RETRIES) {
