@@ -1,6 +1,6 @@
 # Gaga Spider 使用文档
 
-网络漫画/小说资源抓取与管理系统，支持从 Webtoons 抓取漫画资源、本地存储、在线阅读和导出 PDF。
+网络漫画/小说资源抓取与管理系统，支持多源站（Webtoons、动漫嗨）漫画抓取、本地存储、在线阅读和导出 PDF。
 
 ---
 
@@ -55,7 +55,7 @@ npm run dev:backend     # 后端: http://localhost:3000
 | -------------- | -------------------------------------------- |
 | 书架管理       | 浏览、筛选、搜索已抓取的漫画资源             |
 | 漫画阅读       | 在线阅读章节图片，上下章导航                 |
-| 目录抓取       | 抓取所有分类下的漫画列表并下载封面           |
+| 目录抓取       | 多源站目录发现，抓取漫画列表并下载封面       |
 | 单本/批量抓取  | 按书籍触发全本抓取，下载所有章节图片到本地   |
 | 任务管理       | 查看任务状态，停止/重试/删除任务            |
 | PDF 导出       | 将整本漫画打包为 PDF，每章一页，可下载       |
@@ -87,9 +87,14 @@ npm run dev:backend     # 后端: http://localhost:3000
 
 **目录抓取**：
 
-- 右上角「抓取目录」按钮
-- 抓取 Webtoons 所有分类下的漫画列表，下载封面到本地
+- 右上角源站选择下拉框，切换目标源站（Webtoons / 动漫嗨）
+- 点击「抓取目录」按钮，抓取所选源站的全站漫画列表，下载封面到本地
 - 新发现的书籍会自动入库
+
+**各源站发现范围**：
+
+- **Webtoons**：遍历全部 23 个题材分类（action、drama、romance 等），抓取每个分类下的漫画卡片
+- **动漫嗨**：遍历「全部分类」(`/list/0-0-0-0/`) 的所有分页（每页 24 部），逐页抓取漫画卡片
 
 ---
 
@@ -184,15 +189,17 @@ npm run dev:backend     # 后端: http://localhost:3000
 ```
 resourceFiles/
 ├── covers/              # 漫画封面
-│   ├── 動作/            # 按分类分目录
+│   ├── 動作/            # Webtoons 按分类分目录
 │   │   └── 7709.jpg
-│   └── 戀愛/
-│       └── 1618.png
+│   ├── 戀愛/
+│   │   └── 1618.png
+│   └── other/           # 动漫嗨封面（按 other 分类）
+│       └── 5316.jpg
 ├── images/              # 章节图片
-│   └── {titleNo}/       # 按 Webtoons 原始编号
-│       └── {episodeNo}/ # 按章节编号
+│   └── {sourceId}/      # 按源站原始编号（Webtoons titleNo / 动漫嗨 comicId）
+│       └── {orderIndex}/ # 按章节顺序序号
 │           ├── 0001.jpg # 零填充序号
-│           ├── 0002.jpg
+│           ├── 0002.png # 动漫嗨图片扩展名混用 .png/.jpg
 │           └── ...
 └── pdfs/                # 导出的 PDF
     └── {漫画标题}.pdf
@@ -226,6 +233,28 @@ Webtoons 列表页超过最后一页时会回绕到第 1 页。通过跟踪已�
 - 已下载的章节通过 `chapter.isDownloaded` 短路检查直接跳过
 - 重新抓取未完成章节时，先查已有 DB 记录，增量更新而非全量重插
 - 数据库 `uk_chapter_order (chapter_id, order_index)` 唯一索引兜底防重
+
+**多源站架构**
+
+系统采用「基类 + 子类」模式支持多源站抓取：
+
+- `BaseComicScraper` 抽象基类：封装 `fetchPage`、`downloadCover`、`downloadChapterImage`、`computeImagePath`、`saveAuthors`、`saveCategory` 等通用方法
+- `WebtoonsScraperService` / `DongmanhiScraperService`：继承基类，实现各自站点的解析逻辑（`baseUrl`、`rateLimitMs`、`ensureSourceSite`、parser）
+- 通用接口 `POST /scraper/scrape-resource`：根据 resourceId 关联的 sourceSite 自动路由到对应 scraper
+- 任务重试：根据任务所属 sourceSite 域名自动路由到对应 scraper
+
+**动漫嗨 (dongmanhi.com) 抓取说明**
+
+| 维度         | 说明                                                                 |
+| ------------ | -------------------------------------------------------------------- |
+| 资源标识     | comicId（URL 路径 `/manhua/{comicId}/`）                             |
+| 语言         | `zh-cn`（简体中文）                                                  |
+| 章节列表     | 单页全量内嵌 HTML，页面为降序（最新在前），抓取时自动反转为升序      |
+| 阅读页图片   | `.lazyBox img.lazyload` 的 `data-original` 属性，全部内嵌无需 JS     |
+| 图片 CDN     | `img.dongmanhi.com`，无需 Referer                                    |
+| 限速         | 1000ms / 请求                                                        |
+| 评分         | 解析 `.detail-info-stars span`（如 "8.0分"）                         |
+| 全站发现     | 遍历 `/list/0-0-0-0/` 全部分页，每页 24 部                           |
 
 ---
 
@@ -274,7 +303,10 @@ Webtoons 做了防盗链，源站图片无法直接在浏览器加载。系统�
 
 ## 13. 相关文档
 
+- [技术架构文档](ARCHITECTURE.md) - 整体架构、数据模型、核心流程、扩展指南
+
 - [API 接口文档](api.md) - 所有后端接口的详细说明
 - [数据库表结构设计](database/schema-design.md) - 16 张表的设计文档
 - [建表语句](database/schema.sql) - DDL SQL
 - [Webtoons 抓取分析](scraper/webtoons-analysis.md) - 页面层级与采集规则分析
+- [动漫嗨抓取分析](scraper/dongmanhi-analysis.md) - 页面层级与采集规则分析

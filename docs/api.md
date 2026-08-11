@@ -255,7 +255,58 @@ POST /scraper/webtoons/scrape-resource
 
 ---
 
-### 2.4 按 titleNo 抓取 (GET)
+### 2.4 按资源 ID 异步抓取 (通用)
+
+根据资源关联的来源站点自动路由到对应源站的 scraper（Webtoons / 动漫嗨），无需指定源站。会先停止同资源的运行中任务。
+
+```
+POST /scraper/scrape-resource
+```
+
+**请求体**
+
+| 参数        | 类型   | 必填 | 说明                         |
+| ----------- | ------ | ---- | ---------------------------- |
+| resourceId  | number | 是   | 本地资源 ID                  |
+| maxChapters | number | 否   | 最多抓取章节数,`0` 为全部    |
+
+**响应示例**
+
+```json
+{
+  "success": true,
+  "data": { "taskId": 14 }
+}
+```
+
+> 路由逻辑: 查询 `resource_sources` 表中该 resourceId 关联的 `source_sites.domain`，`www.webtoons.com` 走 Webtoons scraper，`www.dongmanhi.com` 走动漫嗨 scraper。
+
+---
+
+### 2.5 动漫嗨目录发现
+
+抓取动漫嗨全部分类下的漫画作品列表,保存封面到本地。
+
+```
+POST /scraper/dongmanhi/discover
+```
+
+**请求体**: 无
+
+**响应示例**
+
+```json
+{
+  "success": true,
+  "data": { "discovered": 1008, "new": 50 }
+}
+```
+
+> 遍历 `/list/0-0-0-0/` 全部分页（每页 24 部），逐页抓取漫画卡片入库。
+
+---
+
+### 2.6 按 titleNo 抓取 (GET)
 
 与 2.2 功能相同,通过 GET 方式调用,便于浏览器直接触发。
 
