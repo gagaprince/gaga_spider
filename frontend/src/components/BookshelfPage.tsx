@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type Resource } from '../api/client';
 import { ScrapeModal } from './ScrapeModal';
 import { BatchScrapeModal } from './BatchScrapeModal';
@@ -13,12 +13,14 @@ export function BookshelfPage() {
   const navigate = useNavigate();
   const [resources, setResources] = useState<Resource[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [scrapeFilter, setScrapeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [completionFilter, setCompletionFilter] = useState('');
+  const [sourceSiteFilter, setSourceSiteFilter] = useState('');
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [showScrape, setShowScrape] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
@@ -26,8 +28,19 @@ export function BookshelfPage() {
   const [discovering, setDiscovering] = useState(false);
   const [discoverSite, setDiscoverSite] = useState<'webtoons' | 'dongmanhi'>('webtoons');
   const [scrapingIds, setScrapingIds] = useState<Set<number>>(new Set());
+  const [jumpPage, setJumpPage] = useState('');
 
-  const pageSize = 20;
+  const pageSize = 50;
+
+  const goToPage = (p: number, replace = false) => {
+    const next = new URLSearchParams(searchParams);
+    if (p <= 1) {
+      next.delete('page');
+    } else {
+      next.set('page', String(p));
+    }
+    setSearchParams(next, replace ? { replace: true } : undefined);
+  };
 
   const fetchResources = useCallback(async () => {
     setLoading(true);
@@ -37,6 +50,7 @@ export function BookshelfPage() {
        scrapeStatus: scrapeFilter || undefined,
        category: categoryFilter || undefined,
         completion: completionFilter || undefined,
+       sourceSite: sourceSiteFilter || undefined,
        page,
         pageSize,
       });
@@ -47,7 +61,7 @@ export function BookshelfPage() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, scrapeFilter, categoryFilter, completionFilter, page]);
+  }, [keyword, scrapeFilter, categoryFilter, completionFilter, sourceSiteFilter, page]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -80,7 +94,7 @@ export function BookshelfPage() {
         ? await api.discoverWebtoons()
         : await api.discoverDongmanhi();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
-      setPage(1);
+      goToPage(1, true);
       fetchResources();
       fetchCategories();
     } catch (e: any) {
@@ -115,13 +129,13 @@ export function BookshelfPage() {
         <input
           type="text"
           value={keyword}
-          onChange={(e) => { setKeyword(e.target.value); setPage(1); }}
+          onChange={(e) => { setKeyword(e.target.value); goToPage(1, true); }}
           placeholder="搜索漫画标题..."
           style={{ flex: 1, minWidth: 200, maxWidth: 300, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}
         />
         <select
           value={scrapeFilter}
-          onChange={(e) => { setScrapeFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setScrapeFilter(e.target.value); goToPage(1, true); }}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">全部抓取状态</option>
@@ -130,7 +144,7 @@ export function BookshelfPage() {
         </select>
         <select
           value={categoryFilter}
-          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setCategoryFilter(e.target.value); goToPage(1, true); }}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff', maxWidth: 150 }}
         >
           <option value="">全部分类</option>
@@ -140,12 +154,21 @@ export function BookshelfPage() {
        </select>
         <select
           value={completionFilter}
-          onChange={(e) => { setCompletionFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { setCompletionFilter(e.target.value); goToPage(1, true); }}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">全部状态</option>
           <option value="ongoing">连载中</option>
           <option value="completed">已完结</option>
+        </select>
+        <select
+          value={sourceSiteFilter}
+          onChange={(e) => { setSourceSiteFilter(e.target.value); goToPage(1, true); }}
+          style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
+        >
+          <option value="">全部源站</option>
+          <option value="www.webtoons.com">Webtoons</option>
+          <option value="www.dongmanhi.com">动漫嗨</option>
         </select>
         <span style={{ color: '#888', fontSize: 14 }}>共 {total} 部</span>
         <div style={{ flex: 1 }} />
@@ -179,6 +202,11 @@ export function BookshelfPage() {
 
       {/* Grid */}
       <div style={{ padding: '0 24px 24px' }}>
+        {totalPages > 1 && (
+          <div style={{ marginBottom: 24 }}>
+            <Pagination page={page} totalPages={totalPages} jumpPage={jumpPage} setJumpPage={setJumpPage} goToPage={goToPage} justify="flex-end" />
+          </div>
+        )}
         {loading ? (
           <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>加载中...</div>
         ) : resources.length === 0 ? (
@@ -202,10 +230,8 @@ export function BookshelfPage() {
         )}
 
         {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 32 }}>
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={pageBtnStyle(page === 1)}>上一页</button>
-            <span style={{ padding: '8px 16px', color: '#666' }}>{page} / {totalPages}</span>
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={pageBtnStyle(page === totalPages)}>下一页</button>
+          <div style={{ marginTop: 32 }}>
+            <Pagination page={page} totalPages={totalPages} jumpPage={jumpPage} setJumpPage={setJumpPage} goToPage={goToPage} justify="center" />
           </div>
         )}
       </div>
@@ -235,6 +261,50 @@ export function BookshelfPage() {
 
 function pageBtnStyle(disabled: boolean): React.CSSProperties {
   return { padding: '8px 16px', border: '1px solid #ddd', borderRadius: 6, background: disabled ? '#f5f5f5' : '#fff', color: disabled ? '#ccc' : '#333', cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 14 };
+}
+
+function Pagination({
+  page,
+  totalPages,
+  jumpPage,
+  setJumpPage,
+  goToPage,
+  justify,
+}: {
+  page: number;
+  totalPages: number;
+  jumpPage: string;
+  setJumpPage: (v: string) => void;
+  goToPage: (p: number) => void;
+  justify: 'flex-start' | 'flex-end' | 'center';
+}) {
+  const handleJump = () => {
+    const p = parseInt(jumpPage, 10);
+    if (p >= 1 && p <= totalPages) {
+      goToPage(p);
+      setJumpPage('');
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: justify }}>
+      <button onClick={() => goToPage(Math.max(1, page - 1))} disabled={page === 1} style={pageBtnStyle(page === 1)}>上一页</button>
+      <span style={{ padding: '8px 16px', color: '#666' }}>{page} / {totalPages}</span>
+      <button onClick={() => goToPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={pageBtnStyle(page === totalPages)}>下一页</button>
+      <span style={{ color: '#888', fontSize: 13 }}>跳至</span>
+      <input
+        type="number"
+        min={1}
+        max={totalPages}
+        value={jumpPage}
+        onChange={(e) => setJumpPage(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleJump(); }}
+        style={{ width: 60, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}
+      />
+      <span style={{ color: '#888', fontSize: 13 }}>页</span>
+      <button onClick={handleJump} style={pageBtnStyle(false)}>跳转</button>
+    </div>
+  );
 }
 
 function ResourceCard({

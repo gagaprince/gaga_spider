@@ -8,6 +8,7 @@ import * as os from 'os';
 import PDFDocument from 'pdfkit';
 import { Resource } from '../entities/resource.entity';
 import { ResourceSource } from '../entities/resource-source.entity';
+import { SourceSite } from '../entities/source-site.entity';
 import { Chapter } from '../entities/chapter.entity';
 import { ChapterImage } from '../entities/chapter-image.entity';
 import { Author } from '../entities/author.entity';
@@ -40,10 +41,20 @@ export class ResourceService {
     scrapeStatus?: string;
     category?: string;
     completion?: string;
+    sourceSite?: string;
     page?: number;
     pageSize?: number;
   }) {
-    const { type, keyword, scrapeStatus, category, completion, page = 1, pageSize = 20 } = query;
+    const {
+      type,
+      keyword,
+      scrapeStatus,
+      category,
+      completion,
+      sourceSite,
+      page = 1,
+      pageSize = 20,
+    } = query;
     const qb = this.resourceRepo.createQueryBuilder('r');
 
     if (type) {
@@ -59,6 +70,24 @@ export class ResourceService {
       qb.andWhere('r.status = :status', { status: 'completed' });
     } else if (completion === 'ongoing') {
       qb.andWhere('r.status = :status', { status: 'ongoing' });
+    }
+
+    if (sourceSite) {
+      qb.andWhere((subQb) => {
+        const subQuery = subQb
+          .subQuery()
+          .select('1')
+          .from(ResourceSource, 'rs')
+          .innerJoin(
+            SourceSite,
+            'ss',
+            'ss.id = rs.source_site_id AND ss.domain = :domain',
+            { domain: sourceSite },
+          )
+          .where('rs.resource_id = r.id')
+          .getQuery();
+        return `EXISTS ${subQuery}`;
+      });
     }
 
     if (scrapeStatus === 'scraped') {
@@ -141,12 +170,17 @@ export class ResourceService {
       .where('r.category IS NOT NULL')
       .groupBy('r.category')
       .orderBy('count', 'DESC')
-    .getRawMany();
-   return result.map((r: any) => ({ name: r.category, count: Number(r.count) }));
- }
+      .getRawMany();
+    return result.map((r: any) => ({
+      name: r.category,
+      count: Number(r.count),
+    }));
+  }
 
   async getChapterWithImages(chapterId: number) {
-    const chapter = await this.chapterRepo.findOne({ where: { id: chapterId } });
+    const chapter = await this.chapterRepo.findOne({
+      where: { id: chapterId },
+    });
     if (!chapter) return null;
 
     const images = await this.chapterImageRepo.find({
@@ -159,12 +193,22 @@ export class ResourceService {
       order: { orderIndex: 'ASC' },
     });
     const idx = siblings.findIndex((s) => s.id === chapterId);
-    const prevChapter = idx > 0
-      ? { id: siblings[idx - 1].id, orderIndex: siblings[idx - 1].orderIndex, title: siblings[idx - 1].title }
-      : null;
-    const nextChapter = idx < siblings.length - 1
-      ? { id: siblings[idx + 1].id, orderIndex: siblings[idx + 1].orderIndex, title: siblings[idx + 1].title }
-      : null;
+    const prevChapter =
+      idx > 0
+        ? {
+            id: siblings[idx - 1].id,
+            orderIndex: siblings[idx - 1].orderIndex,
+            title: siblings[idx - 1].title,
+          }
+        : null;
+    const nextChapter =
+      idx < siblings.length - 1
+        ? {
+            id: siblings[idx + 1].id,
+            orderIndex: siblings[idx + 1].orderIndex,
+            title: siblings[idx + 1].title,
+          }
+        : null;
 
     return {
       id: chapter.id,
@@ -186,7 +230,9 @@ export class ResourceService {
   }
 
   async exportPdf(resourceId: number): Promise<{ pdfPath: string }> {
-    const resource = await this.resourceRepo.findOne({ where: { id: resourceId } });
+    const resource = await this.resourceRepo.findOne({
+      where: { id: resourceId },
+    });
     if (!resource) throw new Error('资源不存在');
 
     const chapters = await this.chapterRepo.find({
@@ -202,12 +248,15 @@ export class ResourceService {
         where: { chapterId: chapter.id, status: 'downloaded' },
         order: { orderIndex: 'ASC' },
       });
-      const localPaths = images.map((img) => img.localPath).filter(Boolean) as string[];
+      const localPaths = images
+        .map((img) => img.localPath)
+        .filter(Boolean) as string[];
       if (localPaths.length > 0) {
         chapterImages.push({ chapterTitle: chapter.title, localPaths });
       }
     }
-    if (chapterImages.length === 0) throw new Error('没有已下载的图片,请先抓取');
+    if (chapterImages.length === 0)
+      throw new Error('没有已下载的图片,请先抓取');
 
     // 输出路径: resourceFiles/pdfs/{resourceId}.pdf
     const pdfDir = path.join(this.settingsService.resourcePath, 'pdfs');
@@ -215,7 +264,9 @@ export class ResourceService {
       fs.mkdirSync(pdfDir, { recursive: true });
     }
     // 文件名使用漫画标题,清理文件系统非法字符
-    const safeTitle = resource.title.replace(/[\/\\:*?"<>|]/g, '_').trim() || `resource_${resourceId}`;
+    const safeTitle =
+      resource.title.replace(/[\/\\:*?"<>|]/g, '_').trim() ||
+      `resource_${resourceId}`;
     const filename = `${safeTitle}.pdf`;
     const filepath = path.join(pdfDir, filename);
     const webPath = `/resourceFiles/pdfs/${encodeURIComponent(filename)}`;
@@ -233,7 +284,11 @@ export class ResourceService {
     const pageWidth = 595; // A4 宽度 (pt)
     const maxPageHeight = 14400; // PDF 单页最大高度 (200 inch)
 
-    interface ImgEntry { img: any; w: number; h: number; }
+    interface ImgEntry {
+      img: any;
+      w: number;
+      h: number;
+    }
 
     // 输出一组图片到一页
     const flushPage = (items: ImgEntry[]) => {
@@ -255,7 +310,10 @@ export class ResourceService {
         const chapterEntries: ImgEntry[] = [];
         // webtoons 每章第一张图为广告图,导出时跳过
         for (const localPath of chapter.localPaths.slice(1)) {
-          const absPath = path.join(this.settingsService.resourcePath, localPath.replace('/resourceFiles/', ''));
+          const absPath = path.join(
+            this.settingsService.resourcePath,
+            localPath.replace('/resourceFiles/', ''),
+          );
           if (!fs.existsSync(absPath)) {
             skippedCount++;
             continue;
@@ -267,10 +325,14 @@ export class ResourceService {
           if (ext !== '.jpg' && ext !== '.jpeg' && ext !== '.png') {
             const tmpPng = path.join(tmpDir, `conv_${imgIdx}.png`);
             try {
-              execFileSync('sips', ['-s', 'format', 'png', absPath, '--out', tmpPng], {
-                stdio: 'pipe',
-                timeout: 30000,
-              });
+              execFileSync(
+                'sips',
+                ['-s', 'format', 'png', absPath, '--out', tmpPng],
+                {
+                  stdio: 'pipe',
+                  timeout: 30000,
+                },
+              );
               imgPath = tmpPng;
               convertedCount++;
             } catch (e) {
@@ -283,9 +345,15 @@ export class ResourceService {
           try {
             const img = (doc as any).openImage(imgPath);
             const scale = Math.min(1, pageWidth / img.width);
-            chapterEntries.push({ img, w: img.width * scale, h: img.height * scale });
+            chapterEntries.push({
+              img,
+              w: img.width * scale,
+              h: img.height * scale,
+            });
           } catch (e) {
-            this.logger.warn(`无法解析图片,跳过: ${imgPath} - ${e instanceof Error ? e.message : e}`);
+            this.logger.warn(
+              `无法解析图片,跳过: ${imgPath} - ${e instanceof Error ? e.message : e}`,
+            );
             skippedCount++;
           }
           imgIdx++;
@@ -302,7 +370,10 @@ export class ResourceService {
             pageHeight = 0;
             const scaleH = maxPageHeight / entry.h;
             doc.addPage({ size: [pageWidth, maxPageHeight] });
-            doc.image(entry.img, 0, 0, { width: entry.w * scaleH, height: maxPageHeight });
+            doc.image(entry.img, 0, 0, {
+              width: entry.w * scaleH,
+              height: maxPageHeight,
+            });
             addedCount++;
             continue;
           }
@@ -323,7 +394,9 @@ export class ResourceService {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
 
-    this.logger.log(`PDF 导出完成: ${resource.title} - 成功 ${addedCount} 张(其中 ${convertedCount} 张格式转换), 跳过 ${skippedCount} 张`);
+    this.logger.log(
+      `PDF 导出完成: ${resource.title} - 成功 ${addedCount} 张(其中 ${convertedCount} 张格式转换), 跳过 ${skippedCount} 张`,
+    );
 
     if (addedCount === 0) {
       throw new Error('没有可导出的图片(均为不支持的格式或文件不存在)');
