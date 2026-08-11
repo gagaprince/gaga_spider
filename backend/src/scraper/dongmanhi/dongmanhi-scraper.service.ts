@@ -218,119 +218,163 @@ export class DongmanhiScraperService extends BaseComicScraper {
     this.logger.log('开始抓取动漫嗨目录...');
     const site = await this.ensureSourceSite();
 
-    // URL 格式 /list/{region}-{category}-{0}-{sort}/{page}.html
-    // 全站发现: 遍历全部分类(0-0-0-0)的所有分页
+    // URL 格式 /list/--{filter}-{sort}/{page}.html
+    // 全站发现: 遍历所有组合 region(0-6) × filter(0-2) × sort(0-1) = 42 个分类
     let discovered = 0;
     let newCount = 0;
     const seenComicIds = new Set<string>();
 
-    const baseUrl = `${this.baseUrl}/list/0-0-0-0/`;
-    this.logger.log(`抓取全部分类: ${baseUrl}`);
-    if (taskId) await this.taskService.log(taskId, 'info', `抓取全部分类`);
+    const regions = ['0', '1', '2', '3', '4', '5', '6'];
+    const filters = ['0', '1', '2'];
+    const sorts = ['0', '1'];
 
-    const { html: firstHtml } = await this.fetchPage(baseUrl);
-    const { totalPages } = this.parser.parsePagination(firstHtml);
+    for (const region of regions) {
+      for (const filter of filters) {
+        for (const sort of sorts) {
+          if (taskId) this.checkCancelled(taskId);
 
-    for (let page = 1; page <= totalPages; page++) {
-      if (taskId) this.checkCancelled(taskId);
-      const pageUrl = page === 1 ? baseUrl : `${baseUrl}${page}.html`;
-      this.logger.log(`抓取第 ${page}/${totalPages} 页`);
-      if (taskId)
-        await this.taskService.log(
-          taskId,
-          'info',
-          `抓取第 ${page}/${totalPages} 页`,
-        );
+          const comboKey = `${region}-0-${filter}-${sort}`;
+          const listBaseUrl = `${this.baseUrl}/list/${comboKey}/`;
+          this.logger.log(`抓取分类: ${comboKey}`);
+          if (taskId)
+            await this.taskService.log(taskId, 'info', `抓取分类: ${comboKey}`);
 
-      const { html } = await this.fetchPage(pageUrl);
-      const cards = this.parser.parseComicCards(html);
-
-      for (const card of cards) {
-        if (seenComicIds.has(card.comicId)) continue;
-        seenComicIds.add(card.comicId);
-        discovered++;
-
-        const existing = await this.resourceSourceRepo.findOne({
-          where: { sourceSiteId: site.id, sourceId: card.comicId },
-        });
-
-        if (!existing) {
-          let resource = await this.resourceRepo.findOne({
-            where: { title: card.title, type: ResourceType.COMIC },
-          });
-          if (!resource) {
-            const localCover = await this.downloadCover(
-              card.comicId,
-              card.coverUrl,
-              'other',
-            );
-            resource = this.resourceRepo.create({
-              type: ResourceType.COMIC,
-              title: card.title,
-              coverUrl: card.coverUrl,
-              localCoverPath: localCover,
-              status:
-                card.status === '完结'
-                  ? 'completed'
-                  : card.status === '连载'
-                    ? 'ongoing'
-                    : 'unknown',
-              language: 'zh-cn',
-              isComplete: card.status === '完结' ? 1 : 0,
-              category: null,
-              extra: {},
-            });
-            resource = await this.resourceRepo.save(resource);
-          } else if (!resource.localCoverPath && card.coverUrl) {
-            const localCover = await this.downloadCover(
-              card.comicId,
-              card.coverUrl,
-              'other',
-            );
-            if (localCover) {
-              resource.localCoverPath = localCover;
-              if (!resource.coverUrl) resource.coverUrl = card.coverUrl;
-              await this.resourceRepo.save(resource);
+          let totalPages = 1;
+          try {
+            const { html: firstHtml } = await this.fetchPage(listBaseUrl);
+            totalPages = this.parser.parsePagination(firstHtml).totalPages;
+            const firstCards = this.parser.parseComicCards(firstHtml);
+            for (const card of firstCards) {
+              if (taskId) this.checkCancelled(taskId);
+              const result = await this.processCard(card, site, seenComicIds);
+              if (result === 'new') newCount++;
+              if (result !== 'dup') discovered++;
             }
+          } catch (e) {
+            this.logger.warn(`分类 ${comboKey} 首页抓取失败,跳过: ${e}`);
+            continue;
           }
 
-          await this.resourceSourceRepo.save({
-            resourceId: resource.id,
-            sourceSiteId: site.id,
-            sourceUrl: card.detailUrl,
-            sourceId: card.comicId,
-            rawTitle: card.title,
-            scrapeStatus: 'idle',
-          });
+          this.logger.log(`分类 ${comboKey}: 共 ${totalPages} 页`);
 
-          newCount++;
-        } else {
-          if (existing.resourceId) {
-            const res = await this.resourceRepo.findOne({
-              where: { id: existing.resourceId },
-            });
-            if (res && !res.localCoverPath && card.coverUrl) {
-              const localCover = await this.downloadCover(
-                card.comicId,
-                card.coverUrl,
-                'other',
+          for (let page = 2; page <= totalPages; page++) {
+            if (taskId) this.checkCancelled(taskId);
+            const pageUrl = `${listBaseUrl}${page}.html`;
+            this.logger.log(`分类 ${comboKey} 第 ${page}/${totalPages} 页`);
+            if (taskId)
+              await this.taskService.log(
+                taskId,
+                'info',
+                `分类 ${comboKey} 第 ${page}/${totalPages} 页`,
               );
-              if (localCover) {
-                res.localCoverPath = localCover;
-                if (!res.coverUrl) res.coverUrl = card.coverUrl;
-                await this.resourceRepo.save(res);
+
+            try {
+              const { html } = await this.fetchPage(pageUrl);
+              const cards = this.parser.parseComicCards(html);
+              for (const card of cards) {
+                if (taskId) this.checkCancelled(taskId);
+                const result = await this.processCard(card, site, seenComicIds);
+                if (result === 'new') newCount++;
+                if (result !== 'dup') discovered++;
               }
+            } catch (e) {
+              this.logger.warn(
+                `分类 ${comboKey} 第 ${page} 页抓取失败,跳过: ${e}`,
+              );
             }
           }
         }
       }
-      this.logger.log(`第 ${page} 页: 发现 ${cards.length} 部作品`);
     }
 
     this.logger.log(
       `目录抓取完成: 共发现 ${discovered} 部, 新增 ${newCount} 部`,
     );
     return { discovered, new: newCount };
+  }
+
+  private async processCard(
+    card: ReturnType<DongmanhiParser['parseComicCards']>[0],
+    site: SourceSite,
+    seenComicIds: Set<string>,
+  ): Promise<'new' | 'existing' | 'dup'> {
+    if (seenComicIds.has(card.comicId)) return 'dup';
+    seenComicIds.add(card.comicId);
+
+    const existing = await this.resourceSourceRepo.findOne({
+      where: { sourceSiteId: site.id, sourceId: card.comicId },
+    });
+
+    if (!existing) {
+      let resource = await this.resourceRepo.findOne({
+        where: { title: card.title, type: ResourceType.COMIC },
+      });
+      if (!resource) {
+        const localCover = await this.downloadCover(
+          card.comicId,
+          card.coverUrl,
+          'other',
+        );
+        resource = this.resourceRepo.create({
+          type: ResourceType.COMIC,
+          title: card.title,
+          coverUrl: card.coverUrl,
+          localCoverPath: localCover,
+          status:
+            card.status === '完结'
+              ? 'completed'
+              : card.status === '连载'
+                ? 'ongoing'
+                : 'unknown',
+          language: 'zh-cn',
+          isComplete: card.status === '完结' ? 1 : 0,
+          category: null,
+          extra: {},
+        });
+        resource = await this.resourceRepo.save(resource);
+      } else if (!resource.localCoverPath && card.coverUrl) {
+        const localCover = await this.downloadCover(
+          card.comicId,
+          card.coverUrl,
+          'other',
+        );
+        if (localCover) {
+          resource.localCoverPath = localCover;
+          if (!resource.coverUrl) resource.coverUrl = card.coverUrl;
+          await this.resourceRepo.save(resource);
+        }
+      }
+
+      await this.resourceSourceRepo.save({
+        resourceId: resource.id,
+        sourceSiteId: site.id,
+        sourceUrl: card.detailUrl,
+        sourceId: card.comicId,
+        rawTitle: card.title,
+        scrapeStatus: 'idle',
+      });
+
+      return 'new';
+    } else {
+      if (existing.resourceId) {
+        const res = await this.resourceRepo.findOne({
+          where: { id: existing.resourceId },
+        });
+        if (res && !res.localCoverPath && card.coverUrl) {
+          const localCover = await this.downloadCover(
+            card.comicId,
+            card.coverUrl,
+            'other',
+          );
+          if (localCover) {
+            res.localCoverPath = localCover;
+            if (!res.coverUrl) res.coverUrl = card.coverUrl;
+            await this.resourceRepo.save(res);
+          }
+        }
+      }
+      return 'existing';
+    }
   }
 
   protected async ensureSourceSite(): Promise<SourceSite> {
