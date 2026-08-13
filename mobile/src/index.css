@@ -1,0 +1,46 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f6fa;
+  color: #2d3436;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100%;
+}
+
+button {
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input,
+select {
+  font-family: inherit;
+  font-size: 16px; /* 避免 iOS 聚焦放大 */
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

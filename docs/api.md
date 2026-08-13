@@ -175,9 +175,99 @@ GET /resources/chapters/:chapterId/images
 
 ---
 
-## 2. 抓取控制 (Scraper)
+## 2. PDF 导出 (PDF)
 
-### 2.1 抓取目录
+### 2.1 导出整本 PDF
+
+```
+POST /resources/:id/export-pdf
+```
+
+将该资源所有已下载章节图片打包为单个 PDF。
+
+**响应示例**
+
+```json
+{
+  "pdfPath": "/resourceFiles/pdfs/火影忍者.pdf"
+}
+```
+
+- 输出路径 `resourceFiles/pdfs/{漫画标题}.pdf`，并写入 `resources.pdf_path`
+- 每章图片垂直堆叠在一页，章节间另起一页；Webtoons 首张广告图自动排除
+- 非 jpg/png 格式经 macOS `sips` 转 PNG 后导入
+
+### 2.2 按章节导出 PDF
+
+```
+POST /resources/:id/export-chapter-pdfs
+```
+
+每个已下载图片的章节单独生成一个 PDF，避免整本过大。
+
+**响应示例**
+
+```json
+{
+  "chapters": [
+    {
+      "chapterId": 6,
+      "orderIndex": 1,
+      "title": "第1話",
+      "pdfPath": "/resourceFiles/pdfs/chapters_1/0001_第1話.pdf",
+      "imageCount": 79
+    }
+  ]
+}
+```
+
+- 输出目录 `resourceFiles/pdfs/chapters_glm_5.2_ark_toC/`，文件名 `{orderIndex填充4位}_{章节标题}.pdf`
+- 无图片的章节自动跳过；每次重新生成会清空旧目录与旧 ZIP 缓存
+
+### 2.3 列出按章节 PDF
+
+```
+GET /resources/:id/chapter-pdfs
+```
+
+扫描已生成的分章 PDF 目录，供页面刷新后回显下载链接。
+
+**响应示例**
+
+```json
+{
+  "chapters": [
+    {
+      "orderIndex": 1,
+      "title": "第1話",
+      "pdfPath": "/resourceFiles/pdfs/chapters_1/0001_第1話.pdf"
+    }
+  ]
+}
+```
+
+> 标题从文件名还原（非法字符已替换为 `_`）。
+
+### 2.4 打包下载分章 PDF (ZIP)
+
+```
+GET /resources/:id/chapter-pdfs/zip
+```
+
+用系统 `zip -j` 打包该资源所有分章 PDF，流式返回二进制流。
+
+**响应头**
+
+- `Content-Type: application/zip`
+- `Content-Disposition: attachment; filename="..."; filename*=UTF-8''...`（中文名按 RFC 5987 编码）
+
+**错误**：未先生成分章 PDF 时返回 `404 { "message": "请先按章节导出 PDF" }`。
+
+---
+
+## 3. 抓取控制 (Scraper)
+
+### 3.1 抓取目录
 
 抓取所有分类下的漫画作品列表,保存封面到本地。
 
@@ -198,7 +288,7 @@ POST /scraper/webtoons/discover
 
 ---
 
-### 2.2 按 titleNo 抓取
+### 3.2 按 titleNo 抓取
 
 按 Webtoons 原始编号发起抓取,会先停止同 titleNo 的运行中任务。同步等待返回。
 
@@ -229,7 +319,7 @@ POST /scraper/webtoons/scrape
 
 ---
 
-### 2.3 按资源 ID 异步抓取
+### 3.3 按资源 ID 异步抓取
 
 按本地资源 ID 发起异步抓取,立即返回任务 ID,后台执行。会先停止同资源的运行中任务。
 
@@ -255,7 +345,7 @@ POST /scraper/webtoons/scrape-resource
 
 ---
 
-### 2.4 按资源 ID 异步抓取 (通用)
+### 3.4 按资源 ID 异步抓取 (通用)
 
 根据资源关联的来源站点自动路由到对应源站的 scraper（Webtoons / 动漫嗨），无需指定源站。会先停止同资源的运行中任务。
 
@@ -283,7 +373,7 @@ POST /scraper/scrape-resource
 
 ---
 
-### 2.5 动漫嗨目录发现
+### 3.5 动漫嗨目录发现
 
 抓取动漫嗨全部分类下的漫画作品列表,保存封面到本地。
 
@@ -306,7 +396,7 @@ POST /scraper/dongmanhi/discover
 
 ---
 
-### 2.6 按 titleNo 抓取 (GET)
+### 3.6 按 titleNo 抓取 (GET)
 
 与 2.2 功能相同,通过 GET 方式调用,便于浏览器直接触发。
 
@@ -325,9 +415,9 @@ GET /scraper/webtoons/scrape?titleNo=7709&maxChapters=1
 
 ---
 
-## 3. 任务管理 (Tasks)
+## 4. 任务管理 (Tasks)
 
-### 3.1 获取任务列表
+### 4.1 获取任务列表
 
 ```
 GET /tasks
@@ -370,7 +460,7 @@ GET /tasks
 
 ---
 
-### 3.2 获取任务详情
+### 4.2 获取任务详情
 
 ```
 GET /tasks/:id
@@ -380,7 +470,7 @@ GET /tasks/:id
 
 ---
 
-### 3.3 停止任务
+### 4.3 停止任务
 
 标记任务为取消状态,抓取进程会在下一个检查点停止。
 
@@ -396,7 +486,7 @@ POST /tasks/:id/stop
 
 ---
 
-### 3.4 重试任务
+### 4.4 重试任务
 
 基于已有任务配置创建新任务并立即执行,会先停止同资源的运行中任务。
 
@@ -422,7 +512,7 @@ POST /tasks/:id/retry
 
 ---
 
-### 3.5 删除任务
+### 4.5 删除任务
 
 删除任务及其关联日志。
 
@@ -438,9 +528,9 @@ DELETE /tasks/:id
 
 ---
 
-## 4. 系统设置 (Settings)
+## 5. 系统设置 (Settings)
 
-### 4.1 获取设置
+### 5.1 获取设置
 
 ```
 GET /settings
@@ -456,7 +546,7 @@ GET /settings
 
 ---
 
-### 4.2 更新设置
+### 5.2 更新设置
 
 ```
 PUT /settings
@@ -478,7 +568,7 @@ PUT /settings
 
 ---
 
-## 5. 静态资源
+## 6. 静态资源
 
 下载到本地的封面和章节图片通过静态文件服务提供访问,不加 `/api` 前缀。
 

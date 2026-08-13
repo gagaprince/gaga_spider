@@ -58,7 +58,8 @@ npm run dev:backend     # 后端: http://localhost:3000
 | 目录抓取       | 多源站目录发现，抓取漫画列表并下载封面       |
 | 单本/批量抓取  | 按书籍触发全本抓取，下载所有章节图片到本地   |
 | 任务管理       | 查看任务状态，停止/重试/删除任务            |
-| PDF 导出       | 将整本漫画打包为 PDF，每章一页，可下载       |
+| PDF 导出       | 整本 PDF / 按章节 PDF，可打包 ZIP 或逐章下载 |
+| 手机端         | 手机浏览搜索/阅读/下载 PDF，不含抓取控制     |
 | 系统设置       | 配置本地资源文件存储路径                     |
 
 ---
@@ -104,10 +105,14 @@ npm run dev:backend     # 后端: http://localhost:3000
 
 - 展示封面、标题、作者、分类、状态、章节数等信息
 - 章节列表按顺序排列，显示每章抓取状态（✓ 已抓取 / 未抓取）
-- **导出 PDF**：点击「导出 PDF」按钮，将所有章节图片打包为 PDF
-  - PDF 保存在 `resourceFiles/pdfs/{漫画标题}.pdf`
-  - 导出完成后显示下载链接
-  - 已导出的书再次进入会自动显示下载链接
+- **导出 PDF**：
+  - **整本 PDF**：点击「📄 导出 PDF」按钮，将所有章节图片打包为单个 PDF
+    - 保存在 `resourceFiles/pdfs/{漫画标题}.pdf`
+    - 导出完成后显示下载链接，已导出的书再次进入会自动显示
+  - **按章节 PDF**：点击「📑 按章节导出 PDF」按钮，每个章节单独生成一个 PDF
+    - 保存在 `resourceFiles/pdfs/chapters_{id}/` 目录，文件名 `0001_章节标题.pdf`
+    - 适合整本过大不便观看的场景；生成后可「📦 打包下载 ZIP」整体下载，或逐章「下载 ↓」
+    - 每次重新生成会清空旧分章目录与旧 ZIP 缓存
 
 **阅读页**（`/resources/:id/chapters/:chapterId`）：
 
@@ -151,7 +156,11 @@ npm run dev:backend     # 后端: http://localhost:3000
 
 ## 7. PDF 导出
 
-**触发方式**：书籍详情页 -> 「导出 PDF」按钮
+提供两种导出方式，均位于书籍详情页。
+
+### 7.1 整本 PDF
+
+**触发方式**：详情页 -> 「📄 导出 PDF」按钮
 
 **导出逻辑**：
 
@@ -169,9 +178,91 @@ npm run dev:backend     # 后端: http://localhost:3000
 
 **下载**：详情页点击「下载 PDF ↓」链接直接下载
 
+### 7.2 按章节 PDF
+
+**触发方式**：详情页 -> 「📑 按章节导出 PDF」按钮
+
+**适用场景**：整本 PDF 文件过大不便观看时，按章拆分。
+
+**导出逻辑**：
+
+- 每个已下载图片的章节单独生成一个 PDF（复用整本导出同一套排版逻辑）
+- 无图片的章节自动跳过
+- 每次重新生成会清空旧分章目录与旧 ZIP 缓存，避免残留过期文件
+
+**输出位置**：
+
+```
+resourceFiles/pdfs/
+├── chapters_{resourceId}/              # 分章 PDF 目录
+│   ├── 0001_第710话.pdf
+│   ├── 0002_第711话.pdf
+│   └── ...
+└── chapters_{resourceId}.zip           # 打包下载缓存（按需生成）
+```
+
+**下载方式**：
+
+- **打包下载**：点击「📦 打包下载 ZIP ↓」，后端用系统 `zip -j` 打包所有分章 PDF 并流式返回（中文名按 RFC 5987 编码）
+- **逐章下载**：分章列表中每行「下载 ↓」单独下载对应章节 PDF
+- 进入详情页时自动回显已生成的分章列表
+
+> 相关接口：`POST /resources/:id/export-chapter-pdfs`、`GET /resources/:id/chapter-pdfs`、`GET /resources/:id/chapter-pdfs/zip`
+
 ---
 
-## 8. 系统设置
+## 8. 手机端（移动阅读站）
+
+`mobile/` 是独立的手机端前端工作区，与 PC 端 `frontend/` 共用同一后端，但**只提供浏览/阅读/导出 PDF 功能，不含抓取控制**，适合在手机上随时看漫画。
+
+**功能范围**
+
+- 搜索漫画标题、按分类/完结状态筛选、分页加载更多
+- 漫画详情：封面/作者/分类/简介 + 章节列表
+- 在线阅读：全屏深色竖向滚动阅读器，懒加载，上/下章导航
+- PDF 下载：整本 PDF、按章节 PDF、打包 ZIP、逐章下载
+
+> 不包含：目录抓取、单本/批量抓取、任务管理、系统设置（这些仍在 PC 端操作）。
+
+**启动方式**
+
+```bash
+npm run dev:mobile     # 手机端: http://localhost:5174
+```
+
+开发服务器默认 `host: true`，手机与电脑处于同一局域网时，用手机浏览器访问 `http://<电脑局域网 IP>:5174` 即可。需后端在 `http://localhost:3000` 运行（Vite 会代理 `/api` 与 `/resourceFiles` 到后端）。
+
+**访问远端后端**
+
+若后端不在本机，可通过环境变量指向远端地址（在 `mobile/` 下创建 `.env.local`）：
+
+```
+VITE_API_BASE=http://192.168.1.100:3000/api
+VITE_RESOURCE_BASE=http://192.168.1.100:3000
+```
+
+- `VITE_API_BASE`：API 请求前缀，默认 `/api`
+- `VITE_RESOURCE_BASE`：本地资源（封面/图片/PDF）地址前缀，默认为空（走代理）
+
+`api/client.ts` 中的 `assetUrl()` 会把后端返回的 `/resourceFiles/...` 路径补上该前缀。
+
+**构建**
+
+```bash
+npm run build:mobile   # 产物在 mobile/dist/
+```
+
+**移动端适配**
+
+- viewport 禁止缩放 + `viewport-fit=cover`，顶/底栏用 `env(safe-area-inset-*)` 避开刘海/底部条
+- 输入框 `font-size: 16px` 防止 iOS 聚焦自动放大，按钮触控区放大
+- 阅读器全屏、暗色背景，与 PC 端阅读页体验一致
+
+**技术栈**：与 PC 端 `frontend/` 相同（React 19 + Vite + TypeScript + React Router），复用根 `node_modules`，无需额外安装依赖。
+
+---
+
+## 9. 系统设置
 
 **访问路径**：左侧菜单 -> 设置（`/settings`）
 
@@ -184,7 +275,7 @@ npm run dev:backend     # 后端: http://localhost:3000
 
 ---
 
-## 9. 资源文件目录结构
+## 10. 资源文件目录结构
 
 ```
 resourceFiles/
@@ -202,14 +293,18 @@ resourceFiles/
 │           ├── 0002.png # 动漫嗨图片扩展名混用 .png/.jpg
 │           └── ...
 └── pdfs/                # 导出的 PDF
-    └── {漫画标题}.pdf
+    ├── {漫画标题}.pdf            # 整本 PDF
+    ├── chapters_{id}/            # 按章节 PDF 目录
+    │   ├── 0001_章节标题.pdf
+    │   └── ...
+    └── chapters_{id}.zip         # 分章 PDF 打包缓存
 ```
 
 > `resourceFiles/` 目录已加入 .gitignore，不会提交到 GitHub。
 
 ---
 
-## 10. 抓取技术说明
+## 11. 抓取技术说明
 
 **Python HTTP 层**
 
@@ -258,7 +353,7 @@ Webtoons 列表页超过最后一页时会回绕到第 1 页。通过跟踪已�
 
 ---
 
-## 11. 数据库表概览
+## 12. 数据库表概览
 
 共 16 张表，核心表如下：
 
@@ -279,7 +374,7 @@ Webtoons 列表页超过最后一页时会回绕到第 1 页。通过跟踪已�
 
 ---
 
-## 12. 常见问题
+## 13. 常见问题
 
 **Q: 图片在前端显示不出来？**
 
@@ -301,7 +396,7 @@ Webtoons 做了防盗链，源站图片无法直接在浏览器加载。系统�
 
 ---
 
-## 13. 相关文档
+## 14. 相关文档
 
 - [技术架构文档](ARCHITECTURE.md) - 整体架构、数据模型、核心流程、扩展指南
 
