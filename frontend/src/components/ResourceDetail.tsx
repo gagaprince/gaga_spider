@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 
 
@@ -17,7 +17,17 @@ interface DetailData {
   isComplete: number;
   pdfPath: string | null;
   extra: Record<string, any> | null;
-  sources: any[];
+  sources: {
+    id: number;
+    sourceSiteId: number;
+    sourceUrl: string;
+    sourceId: string | null;
+    rawTitle: string | null;
+    scrapeStatus: string;
+    isCompleted: number;
+    lastScrapedAt: string | null;
+    sourceSite: { id: number; name: string; domain: string } | null;
+  }[];
   chapters: {
     id: number;
     orderIndex: number;
@@ -27,6 +37,7 @@ interface DetailData {
     isDownloaded: number;
     downloadedAt: string | null;
     sourceUrl: string;
+    sourceSiteId: number | null;
   }[];
   authors: any[];
   categories: any[];
@@ -35,17 +46,30 @@ interface DetailData {
 export function ResourceDetail() {
   const { resourceId } = useParams<{ resourceId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [pdfPath, setPdfPath] = useState<string | null>(null);
+  const activeSourceSiteId = searchParams.get('sourceSiteId')
+    ? Number(searchParams.get('sourceSiteId'))
+    : null;
+  const [pdfPaths, setPdfPaths] = useState<Record<number, string>>({});
   const [exportError, setExportError] = useState('');
+  const [chapterPdfsBySource, setChapterPdfsBySource] = useState<
+    Record<number, { orderIndex: number; title: string; pdfPath: string }[]>
+  >({});
   const [chapterPdfs, setChapterPdfs] = useState<
     { orderIndex: number; title: string; pdfPath: string }[] | null
   >(null);
   const [exportingChapters, setExportingChapters] = useState(false);
   const [chapterExportError, setChapterExportError] = useState('');
+
+  const selectSource = (sourceSiteId: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('sourceSiteId', String(sourceSiteId));
+    setSearchParams(next);
+  };
 
   useEffect(() => {
     if (!resourceId) return;
@@ -59,17 +83,45 @@ export function ResourceDetail() {
         setData(d);
         setError('');
       })
-      .catch((e) => setError(e.message))
+      .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
   }, [resourceId]);
 
+  // 校验 URL 中的 sourceSiteId, 无效时替换为第一个源(不新增 history)
   useEffect(() => {
-    if (!resourceId) return;
+    if (!data) return;
+    const urlId = searchParams.get('sourceSiteId');
+    const requested = urlId ? Number(urlId) : null;
+    const valid =
+      requested != null &&
+      data.sources.some((s) => s.sourceSiteId === requested)
+        ? requested
+        : data.sources[0]?.sourceSiteId ?? null;
+    if (valid !== requested) {
+      const next = new URLSearchParams(searchParams);
+      if (valid == null) {
+        next.delete('sourceSiteId');
+      } else {
+        next.set('sourceSiteId', String(valid));
+      }
+      setSearchParams(next, { replace: true });
+    }
+  }, [data, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!resourceId || activeSourceSiteId == null) return;
     api
-      .listChapterPdfs(Number(resourceId))
-      .then((r) => setChapterPdfs(r.chapters))
-      .catch(() => setChapterPdfs(null));
-  }, [resourceId]);
+      .listChapterPdfs(Number(resourceId), activeSourceSiteId)
+      .then((r) => {
+        setChapterPdfs(r.chapters);
+        setChapterPdfsBySource((prev) => ({
+          ...prev,
+          [activeSourceSiteId]: r.chapters,
+        }));
+      })
+      .catch(() => setChapterPdfs(null))
+      ;
+  }, [resourceId, activeSourceSiteId]);
 
   if (loading) {
     return (
@@ -97,6 +149,20 @@ export function ResourceDetail() {
     completed: '#3498db',
     unknown: '#999',
   };
+
+  const activeSource =
+    data.sources.find((s) => s.sourceSiteId === activeSourceSiteId) ||
+    data.sources[0];
+  const hasMultipleSources = data.sources.length > 1;
+  const visibleChapters = hasMultipleSources
+    ? data.chapters.filter((c) => c.sourceSiteId === activeSource?.sourceSiteId)
+    : data.chapters;
+  const activePdfPath = activeSource
+    ? pdfPaths[activeSource.sourceSiteId]
+    : null;
+  const activeChapterPdfs = activeSource
+    ? chapterPdfsBySource[activeSource.sourceSiteId] ?? chapterPdfs
+    : chapterPdfs;
 
   return (
     <div>
@@ -133,6 +199,7 @@ export function ResourceDetail() {
           style={{
             width: 180,
             flexShrink: 0,
+            alignSelf: 'flex-start',
             borderRadius: 10,
             overflow: 'hidden',
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -229,7 +296,7 @@ export function ResourceDetail() {
               fontSize: 13,
             }}
           >
-            <span>📊 {data.chapters.length} 章</span>
+            <span>📊 {visibleChapters.length} 章</span>
             {data.extra?.viewCount && <span>👁️ {data.extra.viewCount}</span>}
             {data.extra?.subscribeCount && <span>⭐ {data.extra.subscribeCount}</span>}
             {data.extra?.updateDay && <span>📅 每周{data.extra.updateDay}</span>}
@@ -253,20 +320,48 @@ export function ResourceDetail() {
             </div>
           )}
 
-         {/* Source */}
-         {data.sources.length > 0 && (
-           <div style={{ marginTop: 12, fontSize: 12, color: '#aaa', display: 'flex', alignItems: 'center', gap: 8 }}>
-             <span>来源: <a href={data.sources[0].sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#6c5ce7', textDecoration: 'none' }}>{data.sources[0].sourceUrl}</a></span>
-             {data.sources[0].isCompleted === 1 && (
-               <span style={{ background: '#3498db', color: '#fff', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
-                 源站已完结
-               </span>
+         {/* Source switcher */}
+         {data.sources.length > 0 && activeSource && (
+           <div style={{ marginTop: 12 }}>
+             {hasMultipleSources && (
+               <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                 <span style={{ fontSize: 12, color: '#999', alignSelf: 'center' }}>切换源:</span>
+                 {data.sources.map((s) => {
+                   const active = s.sourceSiteId === activeSource.sourceSiteId;
+                   return (
+                     <button
+                       key={s.id}
+                      onClick={() => selectSource(s.sourceSiteId)}
+                       style={{
+                         border: active ? '1px solid #6c5ce7' : '1px solid #ddd',
+                         background: active ? '#6c5ce7' : '#fff',
+                         color: active ? '#fff' : '#555',
+                         padding: '4px 12px',
+                         borderRadius: 14,
+                         fontSize: 12,
+                         fontWeight: 600,
+                         cursor: 'pointer',
+                       }}
+                     >
+                       {s.sourceSite?.name || s.sourceSite?.domain || '未知源'}
+                     </button>
+                   );
+                 })}
+               </div>
              )}
-             {data.sources[0].isCompleted === 0 && (
-               <span style={{ background: '#27ae60', color: '#fff', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
-                 源站连载中
-               </span>
-             )}
+             <div style={{ fontSize: 12, color: '#aaa', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+               <span>来源: <a href={activeSource.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#6c5ce7', textDecoration: 'none' }}>{activeSource.sourceUrl}</a></span>
+               {activeSource.isCompleted === 1 && (
+                 <span style={{ background: '#3498db', color: '#fff', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
+                   源站已完结
+                 </span>
+               )}
+               {activeSource.isCompleted === 0 && (
+                 <span style={{ background: '#27ae60', color: '#fff', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 }}>
+                   源站连载中
+                 </span>
+               )}
+             </div>
            </div>
          )}
 
@@ -277,9 +372,18 @@ export function ResourceDetail() {
                 setExporting(true);
                 setExportError('');
                 try {
-                  const result = await api.exportPdf(Number(resourceId));
-                  setPdfPath(result.pdfPath);
-                  setData({ ...data, pdfPath: result.pdfPath });
+                  const sid = hasMultipleSources
+                    ? activeSource?.sourceSiteId
+                    : undefined;
+                  const result = await api.exportPdf(Number(resourceId), sid);
+                  if (sid != null) {
+                    setPdfPaths((prev) => ({
+                      ...prev,
+                      [sid]: result.pdfPath,
+                    }));
+                  } else {
+                    setData({ ...data, pdfPath: result.pdfPath });
+                  }
                 } catch (e: any) {
                   setExportError(e.message || '导出失败');
                 } finally {
@@ -301,9 +405,9 @@ export function ResourceDetail() {
               {exporting ? '正在导出...' : '📄 导出 PDF'}
             </button>
 
-            {(pdfPath || data.pdfPath) && (
+            {(activePdfPath || (!hasMultipleSources && data.pdfPath)) && (
               <a
-                href={pdfPath || data.pdfPath}
+                href={activePdfPath || data.pdfPath}
                 download
                 style={{
                   color: '#6c5ce7',
@@ -321,14 +425,25 @@ export function ResourceDetail() {
                 setExportingChapters(true);
                 setChapterExportError('');
                 try {
-                  const r = await api.exportChapterPdfs(Number(resourceId));
-                  setChapterPdfs(
-                    r.chapters.map((c) => ({
-                      orderIndex: c.orderIndex,
-                      title: c.title,
-                      pdfPath: c.pdfPath,
-                    })),
+                  const sid = hasMultipleSources
+                    ? activeSource?.sourceSiteId
+                    : undefined;
+                  const r = await api.exportChapterPdfs(
+                    Number(resourceId),
+                    sid,
                   );
+                  const mapped = r.chapters.map((c) => ({
+                    orderIndex: c.orderIndex,
+                    title: c.title,
+                    pdfPath: c.pdfPath,
+                  }));
+                  setChapterPdfs(mapped);
+                  if (sid != null) {
+                    setChapterPdfsBySource((prev) => ({
+                      ...prev,
+                      [sid]: mapped,
+                    }));
+                  }
                 } catch (e: any) {
                   setChapterExportError(e.message || '导出失败');
                 } finally {
@@ -361,7 +476,7 @@ export function ResourceDetail() {
             )}
           </div>
 
-          {chapterPdfs && chapterPdfs.length > 0 && (
+          {activeChapterPdfs && activeChapterPdfs.length > 0 && (
             <div style={{ marginTop: 16 }}>
               <div
                 style={{
@@ -372,10 +487,13 @@ export function ResourceDetail() {
                 }}
               >
                 <span style={{ fontSize: 14, fontWeight: 600, color: '#2d3436' }}>
-                  📚 分章 PDF ({chapterPdfs.length} 个)
+                  📚 分章 PDF ({activeChapterPdfs.length} 个)
                 </span>
                 <a
-                  href={api.chapterPdfsZipUrl(Number(resourceId))}
+                  href={api.chapterPdfsZipUrl(
+                    Number(resourceId),
+                    hasMultipleSources ? activeSource?.sourceSiteId : undefined,
+                  )}
                   download
                   style={{
                     color: '#0984e3',
@@ -396,7 +514,7 @@ export function ResourceDetail() {
                   borderRadius: 8,
                 }}
               >
-                {chapterPdfs.map((ch, idx) => (
+                {activeChapterPdfs.map((ch, idx) => (
                   <div
                     key={ch.orderIndex}
                     style={{
@@ -405,7 +523,7 @@ export function ResourceDetail() {
                       gap: 12,
                       padding: '8px 12px',
                       borderBottom:
-                        idx < chapterPdfs.length - 1
+                        idx < activeChapterPdfs.length - 1
                           ? '1px solid #f0f0f0'
                           : 'none',
                       fontSize: 13,
@@ -464,7 +582,7 @@ export function ResourceDetail() {
             borderBottom: '2px solid #6c5ce7',
           }}
         >
-          章节列表 ({data.chapters.length})
+          章节列表 ({visibleChapters.length})
         </h2>
         <div
           style={{
@@ -474,7 +592,7 @@ export function ResourceDetail() {
             border: '1px solid #eee',
           }}
         >
-         {data.chapters.map((ch, idx) => (
+         {visibleChapters.map((ch, idx) => (
            <div
              key={ch.id}
               onClick={() => navigate(`/resources/${resourceId}/chapters/${ch.id}`)}
@@ -483,7 +601,7 @@ export function ResourceDetail() {
                alignItems: 'center',
                gap: 12,
                padding: '12px 16px',
-               borderBottom: idx < data.chapters.length - 1 ? '1px solid #f0f0f0' : 'none',
+               borderBottom: idx < visibleChapters.length - 1 ? '1px solid #f0f0f0' : 'none',
                fontSize: 14,
                cursor: 'pointer',
                transition: 'background 0.15s',

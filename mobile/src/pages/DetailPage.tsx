@@ -17,10 +17,17 @@ export function DetailPage() {
 
   const [exportingPdf, setExportingPdf] = useState(false);
   const [pdfMsg, setPdfMsg] = useState('');
+  const [pdfPaths, setPdfPaths] = useState<Record<number, string>>({});
 
   const [chapterPdfs, setChapterPdfs] = useState<ChapterPdfItem[] | null>(null);
+  const [chapterPdfsBySource, setChapterPdfsBySource] = useState<
+    Record<number, ChapterPdfItem[]>
+  >({});
   const [exportingChapters, setExportingChapters] = useState(false);
   const [chapterMsg, setChapterMsg] = useState('');
+  const [activeSourceSiteId, setActiveSourceSiteId] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!resourceId) return;
@@ -30,6 +37,10 @@ export function DetailPage() {
       .then((d) => {
         setData(d);
         setError('');
+        setActiveSourceSiteId((prev) => {
+          if (prev && d.sources.some((s) => s.sourceSiteId === prev)) return prev;
+          return d.sources[0]?.sourceSiteId ?? null;
+        });
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -37,12 +48,18 @@ export function DetailPage() {
 
   // 进入页面时回显已生成的分章 PDF
   useEffect(() => {
-    if (!resourceId) return;
+    if (!resourceId || activeSourceSiteId == null) return;
     api
-      .listChapterPdfs(Number(resourceId))
-      .then((r) => setChapterPdfs(r.chapters))
+      .listChapterPdfs(Number(resourceId), activeSourceSiteId)
+      .then((r) => {
+        setChapterPdfs(r.chapters);
+        setChapterPdfsBySource((prev) => ({
+          ...prev,
+          [activeSourceSiteId]: r.chapters,
+        }));
+      })
       .catch(() => setChapterPdfs(null));
-  }, [resourceId]);
+  }, [resourceId, activeSourceSiteId]);
 
   if (loading) return <div style={centerHint}>加载中...</div>;
   if (error || !data)
@@ -61,14 +78,32 @@ export function DetailPage() {
     unknown: '#999',
   };
   const cover = assetUrl(data.localCoverPath || data.coverUrl);
-  const hasChapters = data.chapters.length > 0;
+  const activeSource =
+    data.sources.find((s) => s.sourceSiteId === activeSourceSiteId) ||
+    data.sources[0];
+  const hasMultipleSources = data.sources.length > 1;
+  const visibleChapters = hasMultipleSources
+    ? data.chapters.filter((c) => c.sourceSiteId === activeSource?.sourceSiteId)
+    : data.chapters;
+  const hasChapters = visibleChapters.length > 0;
+  const activePdfPath = activeSource
+    ? pdfPaths[activeSource.sourceSiteId]
+    : null;
+  const activeChapterPdfs = activeSource
+    ? chapterPdfsBySource[activeSource.sourceSiteId] ?? chapterPdfs
+    : chapterPdfs;
 
   const handleExportPdf = async () => {
     setExportingPdf(true);
     setPdfMsg('');
     try {
-      const r = await api.exportPdf(Number(resourceId));
-      setData({ ...data, pdfPath: r.pdfPath });
+      const sid = hasMultipleSources ? activeSource?.sourceSiteId : undefined;
+      const r = await api.exportPdf(Number(resourceId), sid);
+      if (sid != null) {
+        setPdfPaths((prev) => ({ ...prev, [sid]: r.pdfPath }));
+      } else {
+        setData({ ...data, pdfPath: r.pdfPath });
+      }
       setPdfMsg('整本 PDF 已生成');
     } catch (e: any) {
       setPdfMsg(e.message || '导出失败');
@@ -81,14 +116,17 @@ export function DetailPage() {
     setExportingChapters(true);
     setChapterMsg('');
     try {
-      const r = await api.exportChapterPdfs(Number(resourceId));
-      setChapterPdfs(
-        r.chapters.map((c) => ({
+      const sid = hasMultipleSources ? activeSource?.sourceSiteId : undefined;
+      const r = await api.exportChapterPdfs(Number(resourceId), sid);
+      const mapped = r.chapters.map((c) => ({
           orderIndex: c.orderIndex,
           title: c.title,
           pdfPath: c.pdfPath,
-        })),
-      );
+        }));
+      setChapterPdfs(mapped);
+      if (sid != null) {
+        setChapterPdfsBySource((prev) => ({ ...prev, [sid]: mapped }));
+      }
       setChapterMsg(`已生成 ${r.chapters.length} 个分章 PDF`);
     } catch (e: any) {
       setChapterMsg(e.message || '导出失败');
@@ -105,6 +143,7 @@ export function DetailPage() {
           style={{
             width: 108,
             flexShrink: 0,
+            alignSelf: 'flex-start',
             borderRadius: 8,
             overflow: 'hidden',
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -154,8 +193,8 @@ export function DetailPage() {
             </div>
           )}
           <div style={{ ...metaLine, color: '#888' }}>
-            {data.chapters.length} 章 ·{' '}
-            {data.chapters.filter((c) => c.isDownloaded).length} 章已抓取
+            {visibleChapters.length} 章 ·{' '}
+            {visibleChapters.filter((c) => c.isDownloaded).length} 章已抓取
           </div>
         </div>
       </div>
@@ -178,6 +217,36 @@ export function DetailPage() {
       )}
 
       {/* PDF 导出区 */}
+      {hasMultipleSources && activeSource && (
+        <div style={{ padding: '0 14px', marginBottom: 12 }}>
+          <div style={{ ...sectionTitle, borderBottom: 'none', marginBottom: 6 }}>
+            选择来源
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {data.sources.map((s) => {
+              const active = s.sourceSiteId === activeSource.sourceSiteId;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveSourceSiteId(s.sourceSiteId)}
+                  style={{
+                    border: active ? '1px solid #6c5ce7' : '1px solid #ddd',
+                    background: active ? '#6c5ce7' : '#fff',
+                    color: active ? '#fff' : '#555',
+                    padding: '6px 14px',
+                    borderRadius: 16,
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {s.sourceSite?.name || s.sourceSite?.domain || '未知源'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: '0 14px', marginBottom: 16 }}>
         <div style={sectionTitle}>📄 PDF 下载</div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -197,25 +266,30 @@ export function DetailPage() {
           </button>
         </div>
 
-        {pdfMsg && <div style={msgStyle(!!data.pdfPath)}>{pdfMsg}</div>}
-        {data.pdfPath && (
-          <a href={assetUrl(data.pdfPath)} download style={downloadLink}>
+        {pdfMsg && (
+          <div style={msgStyle(!!(activePdfPath || data.pdfPath))}>{pdfMsg}</div>
+        )}
+        {(activePdfPath || (!hasMultipleSources && data.pdfPath)) && (
+          <a href={assetUrl(activePdfPath || data.pdfPath)} download style={downloadLink}>
             下载整本 PDF ↓
           </a>
         )}
 
         {chapterMsg && (
-          <div style={msgStyle((chapterPdfs?.length ?? 0) > 0)}>{chapterMsg}</div>
+          <div style={msgStyle((activeChapterPdfs?.length ?? 0) > 0)}>{chapterMsg}</div>
         )}
 
-        {chapterPdfs && chapterPdfs.length > 0 && (
+        {activeChapterPdfs && activeChapterPdfs.length > 0 && (
           <div style={{ marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>
-                分章 PDF ({chapterPdfs.length})
+                分章 PDF ({activeChapterPdfs.length})
               </span>
               <a
-                href={api.chapterPdfsZipUrl(Number(resourceId))}
+                href={api.chapterPdfsZipUrl(
+                  Number(resourceId),
+                  hasMultipleSources ? activeSource?.sourceSiteId : undefined,
+                )}
                 download
                 style={zipLink}
               >
@@ -223,8 +297,8 @@ export function DetailPage() {
               </a>
             </div>
             <div style={chapterListWrap}>
-              {chapterPdfs.map((ch, idx) => (
-                <div key={ch.orderIndex} style={chapterRow(idx < chapterPdfs.length - 1)}>
+              {activeChapterPdfs.map((ch, idx) => (
+                <div key={ch.orderIndex} style={chapterRow(idx < activeChapterPdfs.length - 1)}>
                   <span style={{ color: '#aaa', width: 36, flexShrink: 0, fontSize: 12 }}>
                     #{ch.orderIndex}
                   </span>
@@ -247,15 +321,15 @@ export function DetailPage() {
 
       {/* 章节列表 */}
       <div style={{ padding: '0 14px' }}>
-        <div style={sectionTitle}>📖 章节列表 ({data.chapters.length})</div>
+        <div style={sectionTitle}>📖 章节列表 ({visibleChapters.length})</div>
         <div style={chapterListWrap}>
-          {data.chapters.map((ch, idx) => (
+          {visibleChapters.map((ch, idx) => (
             <div
               key={ch.id}
               onClick={() =>
                 navigate(`/resources/${resourceId}/chapters/${ch.id}`)
               }
-              style={chapterRow(idx < data.chapters.length - 1, true)}
+              style={chapterRow(idx < visibleChapters.length - 1, true)}
             >
               <span style={{ color: '#aaa', width: 36, flexShrink: 0, fontSize: 12 }}>
                 #{ch.orderIndex}

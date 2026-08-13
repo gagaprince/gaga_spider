@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -49,18 +50,28 @@ export class ResourceController {
   }
 
   @Get(':id/chapter-pdfs')
-  listChapterPdfs(@Param('id', ParseIntPipe) id: number) {
-    return this.resourceService.listChapterPdfs(id);
+  listChapterPdfs(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('sourceSiteId') sourceSiteId?: string,
+  ) {
+    return this.resourceService.listChapterPdfs(
+      id,
+      sourceSiteId ? parseInt(sourceSiteId, 10) : undefined,
+    );
   }
 
   @Get(':id/chapter-pdfs/zip')
   async downloadChapterPdfsZip(
     @Param('id', ParseIntPipe) id: number,
     @Res() res: Response,
+    @Query('sourceSiteId') sourceSiteId?: string,
   ) {
     try {
       const { absPath, downloadName } =
-        await this.resourceService.ensureChapterPdfsZip(id);
+        await this.resourceService.ensureChapterPdfsZip(
+          id,
+          sourceSiteId ? parseInt(sourceSiteId, 10) : undefined,
+        );
       const ascii = downloadName.replace(/[^\x20-\x7e]/g, '_');
       const encoded = encodeURIComponent(downloadName);
       res.setHeader(
@@ -82,12 +93,18 @@ export class ResourceController {
   }
 
   @Post(':id/export-pdf')
-  exportPdf(@Param('id', ParseIntPipe) id: number) {
-    return this.resourceService.exportPdf(id);
+  exportPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('sourceSiteId') sourceSiteId?: number,
+  ) {
+    return this.resourceService.exportPdf(id, sourceSiteId);
   }
 
   @Post(':id/export-chapter-pdfs')
-  exportChapterPdfs(@Param('id', ParseIntPipe) id: number) {
-    return this.resourceService.exportChapterPdfs(id);
+  exportChapterPdfs(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('sourceSiteId') sourceSiteId?: number,
+  ) {
+    return this.resourceService.exportChapterPdfs(id, sourceSiteId);
   }
 }

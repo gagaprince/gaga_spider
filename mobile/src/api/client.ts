@@ -82,7 +82,13 @@ export interface DetailData {
   isComplete: number;
   pdfPath: string | null;
   extra: Record<string, any> | null;
-  sources: any[];
+  sources: {
+    id: number;
+    sourceSiteId: number;
+    sourceUrl: string;
+    isCompleted: number;
+    sourceSite: { id: number; name: string; domain: string } | null;
+  }[];
   chapters: {
     id: number;
     orderIndex: number;
@@ -92,6 +98,7 @@ export interface DetailData {
     isDownloaded: number;
     downloadedAt: string | null;
     sourceUrl: string;
+    sourceSiteId: number | null;
   }[];
   authors: any[];
   categories: any[];
@@ -127,12 +134,13 @@ export const api = {
   getCategories: () =>
     request<{ name: string; count: number }[]>('/resources/categories/list'),
 
-  exportPdf: (id: number) =>
+  exportPdf: (id: number, sourceSiteId?: number) =>
     request<{ pdfPath: string }>(`/resources/${id}/export-pdf`, {
       method: 'POST',
+      body: JSON.stringify(sourceSiteId ? { sourceSiteId } : {}),
     }),
 
-  exportChapterPdfs: (id: number) =>
+  exportChapterPdfs: (id: number, sourceSiteId?: number) =>
     request<{
       chapters: {
         chapterId: number;
@@ -143,13 +151,20 @@ export const api = {
       }[];
     }>(`/resources/${id}/export-chapter-pdfs`, {
       method: 'POST',
+      body: JSON.stringify(sourceSiteId ? { sourceSiteId } : {}),
     }),
 
-  listChapterPdfs: (id: number) =>
+  listChapterPdfs: (id: number, sourceSiteId?: number) =>
     request<{
       chapters: { orderIndex: number; title: string; pdfPath: string }[];
-    }>(`/resources/${id}/chapter-pdfs`),
+    }>(
+      `/resources/${id}/chapter-pdfs${
+        sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+      }`,
+    ),
 
-  chapterPdfsZipUrl: (id: number) =>
-    `${API_BASE}/resources/${id}/chapter-pdfs/zip`,
+  chapterPdfsZipUrl: (id: number, sourceSiteId?: number) =>
+    `${API_BASE}/resources/${id}/chapter-pdfs/zip${
+      sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+    }`,
 };

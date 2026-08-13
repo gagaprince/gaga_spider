@@ -89,15 +89,18 @@ export class WebtoonsScraperService extends BaseComicScraper {
     resourceId: number,
     maxChapters = 0,
   ): Promise<ScrapeResult> {
-    // 停止该资源正在运行的任务
-    const stopped = await this.taskService.stopRunningTasks(resourceId);
+    const site = await this.ensureSourceSite();
+    // 仅停止该资源当前源站正在运行的任务,避免影响其它源站并行抓取
+    const stopped = await this.taskService.stopRunningTasks(
+      resourceId,
+      undefined,
+      site.id,
+    );
     if (stopped.length > 0) {
       this.logger.log(
         `已停止 ${stopped.length} 个旧任务,重新开始抓取 resourceId=${resourceId}`,
       );
     }
-
-    const site = await this.ensureSourceSite();
     const rs = await this.resourceSourceRepo.findOne({
       where: { resourceId, sourceSiteId: site.id },
     });
@@ -117,15 +120,17 @@ export class WebtoonsScraperService extends BaseComicScraper {
     resourceId: number,
     maxChapters = 0,
   ): Promise<{ taskId: number }> {
-    // 停止该资源正在运行的任务
-    const stopped = await this.taskService.stopRunningTasks(resourceId);
+    const site = await this.ensureSourceSite();
+    const stopped = await this.taskService.stopRunningTasks(
+      resourceId,
+      undefined,
+      site.id,
+    );
     if (stopped.length > 0) {
       this.logger.log(
         `已停止 ${stopped.length} 个旧任务,重新开始抓取 resourceId=${resourceId}`,
       );
     }
-
-    const site = await this.ensureSourceSite();
     const rs = await this.resourceSourceRepo.findOne({
       where: { resourceId, sourceSiteId: site.id },
     });
@@ -292,7 +297,10 @@ export class WebtoonsScraperService extends BaseComicScraper {
       }
     }
 
-    resource.chapterCount = chaptersToScrape.length;
+    // 多源场景下章节数取该资源所有源站的章节总数,避免被单个源覆盖
+    resource.chapterCount = await this.chapterRepo.count({
+      where: { resourceId: resource.id },
+    });
     await this.resourceRepo.save(resource);
     return result;
   }

@@ -135,7 +135,11 @@ export class ResourceService {
     if (!resource) return null;
 
     const [sources, chapters, authors, categories] = await Promise.all([
-      this.resourceSourceRepo.find({ where: { resourceId: id } }),
+      this.resourceSourceRepo.find({
+        where: { resourceId: id },
+        relations: ['sourceSite'],
+        order: { id: 'ASC' },
+      }),
       this.chapterRepo.find({
         where: { resourceId: id },
         order: { orderIndex: 'ASC' },
@@ -146,7 +150,24 @@ export class ResourceService {
 
     return {
       ...resource,
-      sources,
+      sources: sources.map((s) => ({
+        id: s.id,
+        sourceSiteId: s.sourceSiteId,
+        sourceUrl: s.sourceUrl,
+        sourceId: s.sourceId,
+        rawTitle: s.rawTitle,
+        scrapeStatus: s.scrapeStatus,
+        isCompleted: s.isCompleted,
+        lastScrapedAt: s.lastScrapedAt,
+        lastChapterOrder: s.lastChapterOrder,
+        sourceSite: s.sourceSite
+          ? {
+              id: s.sourceSite.id,
+              name: s.sourceSite.name,
+              domain: s.sourceSite.domain,
+            }
+          : null,
+      })),
       chapters: chapters.map((c) => ({
         id: c.id,
         orderIndex: c.orderIndex,
@@ -156,6 +177,7 @@ export class ResourceService {
         isDownloaded: c.isDownloaded,
         downloadedAt: c.downloadedAt,
         sourceUrl: c.sourceUrl,
+        sourceSiteId: c.sourceSiteId,
       })),
       authors,
       categories,
@@ -189,7 +211,10 @@ export class ResourceService {
     });
 
     const siblings = await this.chapterRepo.find({
-      where: { resourceId: chapter.resourceId },
+      where: {
+        resourceId: chapter.resourceId,
+        ...(chapter.sourceSiteId ? { sourceSiteId: chapter.sourceSiteId } : {}),
+      },
       order: { orderIndex: 'ASC' },
     });
     const idx = siblings.findIndex((s) => s.id === chapterId);
@@ -229,14 +254,17 @@ export class ResourceService {
     };
   }
 
-  async exportPdf(resourceId: number): Promise<{ pdfPath: string }> {
+  async exportPdf(
+    resourceId: number,
+    sourceSiteId?: number,
+  ): Promise<{ pdfPath: string }> {
     const resource = await this.resourceRepo.findOne({
       where: { id: resourceId },
     });
     if (!resource) throw new Error('资源不存在');
 
     const chapters = await this.chapterRepo.find({
-      where: { resourceId },
+      where: { resourceId, ...(sourceSiteId ? { sourceSiteId } : {}) },
       order: { orderIndex: 'ASC' },
     });
     if (chapters.length === 0) throw new Error('该资源没有章节,无法导出');
@@ -258,13 +286,9 @@ export class ResourceService {
     if (chapterImages.length === 0)
       throw new Error('没有已下载的图片,请先抓取');
 
-    // 查询资源关联的源站,判断是否需要跳过首图(Webtoons 首图为广告)
-    const resourceSource = await this.resourceSourceRepo.findOne({
-      where: { resourceId },
-      relations: ['sourceSite'],
-    });
     const skipFirstImage =
-      resourceSource?.sourceSite?.domain === 'www.webtoons.com';
+      (await this.resolveSourceDomain(resourceId, sourceSiteId)) ===
+      'www.webtoons.com';
 
     // 输出路径: resourceFiles/pdfs/{resourceId}.pdf
     const pdfDir = path.join(this.settingsService.resourcePath, 'pdfs');
@@ -275,7 +299,8 @@ export class ResourceService {
     const safeTitle =
       resource.title.replace(/[\/\\:*?"<>|]/g, '_').trim() ||
       `resource_${resourceId}`;
-    const filename = `${safeTitle}.pdf`;
+    const suffix = sourceSiteId ? `_${sourceSiteId}` : '';
+    const filename = `${safeTitle}${suffix}.pdf`;
     const filepath = path.join(pdfDir, filename);
     const webPath = `/resourceFiles/pdfs/${encodeURIComponent(filename)}`;
 
@@ -312,8 +337,10 @@ export class ResourceService {
       stream.on('error', reject);
     });
 
-    resource.pdfPath = webPath;
-    await this.resourceRepo.save(resource);
+    if (!sourceSiteId) {
+      resource.pdfPath = webPath;
+      await this.resourceRepo.save(resource);
+    }
 
     return { pdfPath: webPath };
   }
@@ -443,7 +470,10 @@ export class ResourceService {
    * 输出目录: resourceFiles/pdfs/chapters_{resourceId}/
    * 文件名: {orderIndex padded}_{章节标题}.pdf
    */
-  async exportChapterPdfs(resourceId: number): Promise<{
+  async exportChapterPdfs(
+    resourceId: number,
+    sourceSiteId?: number,
+  ): Promise<{
     chapters: {
       chapterId: number;
       orderIndex: number;
@@ -458,22 +488,20 @@ export class ResourceService {
     if (!resource) throw new Error('资源不存在');
 
     const chapters = await this.chapterRepo.find({
-      where: { resourceId },
+      where: { resourceId, ...(sourceSiteId ? { sourceSiteId } : {}) },
       order: { orderIndex: 'ASC' },
     });
     if (chapters.length === 0) throw new Error('该资源没有章节,无法导出');
 
-    const resourceSource = await this.resourceSourceRepo.findOne({
-      where: { resourceId },
-      relations: ['sourceSite'],
-    });
     const skipFirstImage =
-      resourceSource?.sourceSite?.domain === 'www.webtoons.com';
+      (await this.resolveSourceDomain(resourceId, sourceSiteId)) ===
+      'www.webtoons.com';
 
+    const dirName = this.chapterPdfDirName(resourceId, sourceSiteId);
     const chapterDir = path.join(
       this.settingsService.resourcePath,
       'pdfs',
-      `chapters_${resourceId}`,
+      dirName,
     );
     // 每次重新生成都清空旧目录,避免残留过期章节文件
     if (fs.existsSync(chapterDir)) {
@@ -485,7 +513,7 @@ export class ResourceService {
     const zipAbs = path.join(
       this.settingsService.resourcePath,
       'pdfs',
-      `chapters_${resourceId}.zip`,
+      `${dirName}.zip`,
     );
     if (fs.existsSync(zipAbs)) {
       fs.rmSync(zipAbs, { force: true });
@@ -518,7 +546,7 @@ export class ResourceService {
           `chapter_${chapter.orderIndex}`;
         const filename = `${String(chapter.orderIndex).padStart(4, '0')}_${safeChapterTitle}.pdf`;
         const filepath = path.join(chapterDir, filename);
-        const webPath = `/resourceFiles/pdfs/chapters_${resourceId}/${encodeURIComponent(filename)}`;
+        const webPath = `/resourceFiles/pdfs/${dirName}/${encodeURIComponent(filename)}`;
 
         const doc = new PDFDocument({ autoFirstPage: false });
         const stream = fs.createWriteStream(filepath);
@@ -562,13 +590,17 @@ export class ResourceService {
   /**
    * 列出已生成的按章节 PDF(扫描目录),用于页面刷新后回显下载链接。
    */
-  async listChapterPdfs(resourceId: number): Promise<{
+  async listChapterPdfs(
+    resourceId: number,
+    sourceSiteId?: number,
+  ): Promise<{
     chapters: { orderIndex: number; title: string; pdfPath: string }[];
   }> {
+    const dirName = this.chapterPdfDirName(resourceId, sourceSiteId);
     const chapterDir = path.join(
       this.settingsService.resourcePath,
       'pdfs',
-      `chapters_${resourceId}`,
+      dirName,
     );
     if (!fs.existsSync(chapterDir)) return { chapters: [] };
 
@@ -584,7 +616,7 @@ export class ResourceService {
       return {
         orderIndex,
         title,
-        pdfPath: `/resourceFiles/pdfs/chapters_${resourceId}/${encodeURIComponent(f)}`,
+        pdfPath: `/resourceFiles/pdfs/${dirName}/${encodeURIComponent(f)}`,
       };
     });
     return { chapters };
@@ -596,16 +628,18 @@ export class ResourceService {
    */
   async ensureChapterPdfsZip(
     resourceId: number,
+    sourceSiteId?: number,
   ): Promise<{ absPath: string; downloadName: string }> {
     const resource = await this.resourceRepo.findOne({
       where: { id: resourceId },
     });
     if (!resource) throw new Error('资源不存在');
 
+    const dirName = this.chapterPdfDirName(resourceId, sourceSiteId);
     const chapterDir = path.join(
       this.settingsService.resourcePath,
       'pdfs',
-      `chapters_${resourceId}`,
+      dirName,
     );
     if (!fs.existsSync(chapterDir)) {
       throw new Error('请先按章节导出 PDF');
@@ -622,7 +656,7 @@ export class ResourceService {
     const zipAbs = path.join(
       this.settingsService.resourcePath,
       'pdfs',
-      `chapters_${resourceId}.zip`,
+      `${dirName}.zip`,
     );
     if (fs.existsSync(zipAbs)) {
       fs.rmSync(zipAbs, { force: true });
@@ -642,7 +676,11 @@ export class ResourceService {
     const safeTitle =
       resource.title.replace(/[\/\\:*?"<>|]/g, '_').trim() ||
       `resource_${resourceId}`;
-    return { absPath: zipAbs, downloadName: `${safeTitle}_分章PDF.zip` };
+    const sourceSuffix = sourceSiteId ? `_源${sourceSiteId}` : '';
+    return {
+      absPath: zipAbs,
+      downloadName: `${safeTitle}${sourceSuffix}_分章PDF.zip`,
+    };
   }
 
   private async getAuthors(resourceId: number) {
@@ -651,6 +689,33 @@ export class ResourceService {
       .innerJoin('resource_authors', 'ra', 'ra.author_id = a.id')
       .where('ra.resource_id = :resourceId', { resourceId })
       .getMany();
+  }
+
+  /**
+   * 解析指定 sourceSiteId 对应的域名; 未传时取第一个来源。
+   * 用于判断是否跳过 Webtoons 首图等源站相关逻辑。
+   */
+  private async resolveSourceDomain(
+    resourceId: number,
+    sourceSiteId?: number,
+  ): Promise<string | null> {
+    const where: any = { resourceId };
+    if (sourceSiteId) where.sourceSiteId = sourceSiteId;
+    const rs = await this.resourceSourceRepo.findOne({
+      where,
+      relations: ['sourceSite'],
+      order: { id: 'ASC' },
+    });
+    return rs?.sourceSite?.domain ?? null;
+  }
+
+  /**
+   * 按章节目录命名: 按源站隔离, 避免多源章节文件互相覆盖。
+   */
+  private chapterPdfDirName(resourceId: number, sourceSiteId?: number): string {
+    return sourceSiteId
+      ? `chapters_${resourceId}_${sourceSiteId}`
+      : `chapters_${resourceId}`;
   }
 
   private async getCategories(resourceId: number) {

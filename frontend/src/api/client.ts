@@ -94,12 +94,13 @@ export const api = {
 
  getResource: (id: number) => request<any>(`/resources/${id}`),
 
-  exportPdf: (id: number) =>
+  exportPdf: (id: number, sourceSiteId?: number) =>
     request<{ pdfPath: string }>(`/resources/${id}/export-pdf`, {
       method: 'POST',
+      body: JSON.stringify(sourceSiteId ? { sourceSiteId } : {}),
     }),
 
-  exportChapterPdfs: (id: number) =>
+  exportChapterPdfs: (id: number, sourceSiteId?: number) =>
     request<{
       chapters: {
         chapterId: number;
@@ -110,15 +111,22 @@ export const api = {
       }[];
     }>(`/resources/${id}/export-chapter-pdfs`, {
       method: 'POST',
+      body: JSON.stringify(sourceSiteId ? { sourceSiteId } : {}),
     }),
 
-  listChapterPdfs: (id: number) =>
+  listChapterPdfs: (id: number, sourceSiteId?: number) =>
     request<{
       chapters: { orderIndex: number; title: string; pdfPath: string }[];
-    }>(`/resources/${id}/chapter-pdfs`),
+    }>(
+      `/resources/${id}/chapter-pdfs${
+        sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+      }`,
+    ),
 
-  chapterPdfsZipUrl: (id: number) =>
-    `${BASE_URL}/resources/${id}/chapter-pdfs/zip`,
+  chapterPdfsZipUrl: (id: number, sourceSiteId?: number) =>
+    `${BASE_URL}/resources/${id}/chapter-pdfs/zip${
+      sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+    }`,
 
   getChapterImages: (chapterId: number) =>
     request<{
@@ -148,7 +156,13 @@ export const api = {
     }),
 
   scrapeResource: (resourceId: number, maxChapters?: number) =>
-    request<{ success: boolean; data: { taskId: number } }>(
+    request<{
+      success: boolean;
+      data: {
+        sourceCount: number;
+        tasks: { sourceSiteId: number; domain: string; taskId: number }[];
+      };
+    }>(
       '/scraper/scrape-resource',
       {
         method: 'POST',

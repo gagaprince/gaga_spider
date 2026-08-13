@@ -99,7 +99,11 @@ export class TaskService {
     this.runningAbortControllers.set(id, true);
   }
 
-  async stopRunningTasks(resourceId?: number, titleNo?: number): Promise<number[]> {
+  async stopRunningTasks(
+    resourceId?: number,
+    titleNo?: number,
+    sourceSiteId?: number,
+  ): Promise<number[]> {
     const qb = this.taskRepo
       .createQueryBuilder('t')
       .where('t.status IN (:...statuses)', { statuses: [TaskStatus.RUNNING, TaskStatus.PENDING] });
@@ -109,6 +113,9 @@ export class TaskService {
     }
     if (titleNo) {
       qb.andWhere("JSON_EXTRACT(t.config, '$.titleNo') = :titleNo", { titleNo });
+    }
+    if (sourceSiteId) {
+      qb.andWhere('t.source_site_id = :sourceSiteId', { sourceSiteId });
     }
 
     const tasks = await qb.getMany();

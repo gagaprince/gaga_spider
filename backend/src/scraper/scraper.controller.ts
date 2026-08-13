@@ -30,12 +30,30 @@ export class ScraperController {
     @Body('resourceId') resourceId: number,
     @Body('maxChapters') maxChapters?: number,
   ) {
-    const scraper = await this.resolveScraperByResourceId(resourceId);
-    const result = await scraper.scrapeByResourceIdAsync(
-      resourceId,
-      maxChapters || 0,
-    );
-    return { success: true, data: result };
+    const sources = await this.resourceSourceRepo.find({
+      where: { resourceId },
+      relations: ['sourceSite'],
+    });
+    if (sources.length === 0) {
+      throw new NotFoundException(`资源 ${resourceId} 没有关联的来源记录`);
+    }
+
+    // 一本书有多个源时,同时发起每个源的抓取任务(各源任务互不影响)
+    const tasks: { sourceSiteId: number; domain: string; taskId: number }[] =
+      [];
+    for (const rs of sources) {
+      const scraper = this.resolveScraperByDomain(rs.sourceSite?.domain);
+      const result = await scraper.scrapeByResourceIdAsync(
+        resourceId,
+        maxChapters || 0,
+      );
+      tasks.push({
+        sourceSiteId: rs.sourceSiteId,
+        domain: rs.sourceSite?.domain || '',
+        taskId: result.taskId,
+      });
+    }
+    return { success: true, data: { tasks, sourceCount: sources.length } };
   }
 
   // ===== Webtoons =====
@@ -89,15 +107,7 @@ export class ScraperController {
   }
 
   // ===== 路由解析 =====
-  private async resolveScraperByResourceId(resourceId: number) {
-    const rs = await this.resourceSourceRepo.findOne({
-      where: { resourceId },
-      relations: ['sourceSite'],
-    });
-    if (!rs) {
-      throw new NotFoundException(`资源 ${resourceId} 没有关联的来源记录`);
-    }
-    const domain = rs.sourceSite?.domain;
+  private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
       return this.dongmanhiScraper;
     }

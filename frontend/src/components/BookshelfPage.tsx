@@ -16,11 +16,11 @@ export function BookshelfPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const [loading, setLoading] = useState(false);
-  const [keyword, setKeyword] = useState('');
-  const [scrapeFilter, setScrapeFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [completionFilter, setCompletionFilter] = useState('');
-  const [sourceSiteFilter, setSourceSiteFilter] = useState('');
+  const [keyword, setKeyword] = useState(searchParams.get('q') || '');
+  const scrapeFilter = searchParams.get('scrape') || '';
+  const categoryFilter = searchParams.get('category') || '';
+  const completionFilter = searchParams.get('completion') || '';
+  const sourceSiteFilter = searchParams.get('sourceSite') || '';
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [showScrape, setShowScrape] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
@@ -31,6 +31,30 @@ export function BookshelfPage() {
   const [jumpPage, setJumpPage] = useState('');
 
   const pageSize = 50;
+
+  // 浏览器前进/后退时,把 URL 中的搜索词同步回输入框
+  useEffect(() => {
+    setKeyword(searchParams.get('q') || '');
+  }, [searchParams]);
+
+  const updateParams = useCallback(
+    (patch: Record<string, string>, opts?: { replace?: boolean }) => {
+      const next = new URLSearchParams(searchParams);
+      for (const [key, value] of Object.entries(patch)) {
+        if (!value) {
+          next.delete(key);
+        } else {
+          next.set(key, value);
+        }
+      }
+      // 任何筛选条件变化都回到第 1 页
+      if (!('page' in patch)) {
+        next.delete('page');
+      }
+      setSearchParams(next, opts?.replace ? { replace: true } : undefined);
+    },
+    [searchParams, setSearchParams],
+  );
 
   const goToPage = (p: number, replace = false) => {
     const next = new URLSearchParams(searchParams);
@@ -107,8 +131,13 @@ export function BookshelfPage() {
   const handleScrapeOne = async (r: Resource) => {
     setScrapingIds((prev) => new Set(prev).add(r.id));
     try {
-      await api.scrapeResource(r.id, 0);
-      showToast(`已创建抓取任务: ${r.title}`);
+      const resp = await api.scrapeResource(r.id, 0);
+      const count = resp.data?.sourceCount ?? 1;
+      showToast(
+        count > 1
+          ? `已为 ${count} 个源同时创建抓取任务: ${r.title}`
+          : `已创建抓取任务: ${r.title}`,
+      );
     } catch (e: any) {
       showToast(e.message || '创建任务失败');
     } finally {
@@ -129,13 +158,16 @@ export function BookshelfPage() {
         <input
           type="text"
           value={keyword}
-          onChange={(e) => { setKeyword(e.target.value); goToPage(1, true); }}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            updateParams({ q: e.target.value, page: '' }, { replace: true });
+          }}
           placeholder="搜索漫画标题..."
           style={{ flex: 1, minWidth: 200, maxWidth: 300, padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}
         />
         <select
           value={scrapeFilter}
-          onChange={(e) => { setScrapeFilter(e.target.value); goToPage(1, true); }}
+          onChange={(e) => updateParams({ scrape: e.target.value })}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">全部抓取状态</option>
@@ -144,7 +176,7 @@ export function BookshelfPage() {
         </select>
         <select
           value={categoryFilter}
-          onChange={(e) => { setCategoryFilter(e.target.value); goToPage(1, true); }}
+          onChange={(e) => updateParams({ category: e.target.value })}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff', maxWidth: 150 }}
         >
           <option value="">全部分类</option>
@@ -154,7 +186,7 @@ export function BookshelfPage() {
        </select>
         <select
           value={completionFilter}
-          onChange={(e) => { setCompletionFilter(e.target.value); goToPage(1, true); }}
+          onChange={(e) => updateParams({ completion: e.target.value })}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">全部状态</option>
@@ -163,7 +195,7 @@ export function BookshelfPage() {
         </select>
         <select
           value={sourceSiteFilter}
-          onChange={(e) => { setSourceSiteFilter(e.target.value); goToPage(1, true); }}
+          onChange={(e) => updateParams({ sourceSite: e.target.value })}
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">全部源站</option>

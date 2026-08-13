@@ -72,14 +72,17 @@ export class DongmanhiScraperService extends BaseComicScraper {
     resourceId: number,
     maxChapters = 0,
   ): Promise<{ taskId: number }> {
-    const stopped = await this.taskService.stopRunningTasks(resourceId);
+    const site = await this.ensureSourceSite();
+    const stopped = await this.taskService.stopRunningTasks(
+      resourceId,
+      undefined,
+      site.id,
+    );
     if (stopped.length > 0) {
       this.logger.log(
         `已停止 ${stopped.length} 个旧任务,重新开始抓取 resourceId=${resourceId}`,
       );
     }
-
-    const site = await this.ensureSourceSite();
     const rs = await this.resourceSourceRepo.findOne({
       where: { resourceId, sourceSiteId: site.id },
     });
@@ -207,7 +210,9 @@ export class DongmanhiScraperService extends BaseComicScraper {
       }
     }
 
-    resource.chapterCount = chaptersToScrape.length;
+    resource.chapterCount = await this.chapterRepo.count({
+      where: { resourceId: resource.id },
+    });
     await this.resourceRepo.save(resource);
     return result;
   }
