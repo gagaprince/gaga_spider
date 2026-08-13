@@ -332,7 +332,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
           extra: {},
         });
         resource = await this.resourceRepo.save(resource);
-      } else if (!resource.localCoverPath && card.coverUrl) {
+      } else if (!this.coverFileExists(resource.localCoverPath) && card.coverUrl) {
         const localCover = await this.downloadCover(
           card.comicId,
           card.coverUrl,
@@ -360,7 +360,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
         const res = await this.resourceRepo.findOne({
           where: { id: existing.resourceId },
         });
-        if (res && !res.localCoverPath && card.coverUrl) {
+        if (res && !this.coverFileExists(res.localCoverPath) && card.coverUrl) {
           const localCover = await this.downloadCover(
             card.comicId,
             card.coverUrl,

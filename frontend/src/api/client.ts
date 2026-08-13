@@ -99,6 +99,27 @@ export const api = {
       method: 'POST',
     }),
 
+  exportChapterPdfs: (id: number) =>
+    request<{
+      chapters: {
+        chapterId: number;
+        orderIndex: number;
+        title: string;
+        pdfPath: string;
+        imageCount: number;
+      }[];
+    }>(`/resources/${id}/export-chapter-pdfs`, {
+      method: 'POST',
+    }),
+
+  listChapterPdfs: (id: number) =>
+    request<{
+      chapters: { orderIndex: number; title: string; pdfPath: string }[];
+    }>(`/resources/${id}/chapter-pdfs`),
+
+  chapterPdfsZipUrl: (id: number) =>
+    `${BASE_URL}/resources/${id}/chapter-pdfs/zip`,
+
   getChapterImages: (chapterId: number) =>
     request<{
       id: number;

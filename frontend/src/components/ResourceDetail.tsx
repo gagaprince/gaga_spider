@@ -41,6 +41,11 @@ export function ResourceDetail() {
   const [exporting, setExporting] = useState(false);
   const [pdfPath, setPdfPath] = useState<string | null>(null);
   const [exportError, setExportError] = useState('');
+  const [chapterPdfs, setChapterPdfs] = useState<
+    { orderIndex: number; title: string; pdfPath: string }[] | null
+  >(null);
+  const [exportingChapters, setExportingChapters] = useState(false);
+  const [chapterExportError, setChapterExportError] = useState('');
 
   useEffect(() => {
     if (!resourceId) return;
@@ -56,6 +61,14 @@ export function ResourceDetail() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }, [resourceId]);
+
+  useEffect(() => {
+    if (!resourceId) return;
+    api
+      .listChapterPdfs(Number(resourceId))
+      .then((r) => setChapterPdfs(r.chapters))
+      .catch(() => setChapterPdfs(null));
   }, [resourceId]);
 
   if (loading) {
@@ -258,7 +271,7 @@ export function ResourceDetail() {
          )}
 
           {/* PDF Export */}
-          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <button
               onClick={async () => {
                 setExporting(true);
@@ -303,10 +316,139 @@ export function ResourceDetail() {
               </a>
             )}
 
+            <button
+              onClick={async () => {
+                setExportingChapters(true);
+                setChapterExportError('');
+                try {
+                  const r = await api.exportChapterPdfs(Number(resourceId));
+                  setChapterPdfs(
+                    r.chapters.map((c) => ({
+                      orderIndex: c.orderIndex,
+                      title: c.title,
+                      pdfPath: c.pdfPath,
+                    })),
+                  );
+                } catch (e: any) {
+                  setChapterExportError(e.message || '导出失败');
+                } finally {
+                  setExportingChapters(false);
+                }
+              }}
+              disabled={exportingChapters}
+              style={{
+                border: 'none',
+                background: exportingChapters ? '#a29bfe' : '#0984e3',
+                color: '#fff',
+                padding: '8px 20px',
+                borderRadius: 8,
+                cursor: exportingChapters ? 'wait' : 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              {exportingChapters ? '正在生成分章...' : '📑 按章节导出 PDF'}
+            </button>
+
             {exportError && (
               <span style={{ color: '#e74c3c', fontSize: 13 }}>{exportError}</span>
             )}
+
+            {chapterExportError && (
+              <span style={{ color: '#e74c3c', fontSize: 13 }}>
+                {chapterExportError}
+              </span>
+            )}
           </div>
+
+          {chapterPdfs && chapterPdfs.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#2d3436' }}>
+                  📚 分章 PDF ({chapterPdfs.length} 个)
+                </span>
+                <a
+                  href={api.chapterPdfsZipUrl(Number(resourceId))}
+                  download
+                  style={{
+                    color: '#0984e3',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    textDecoration: 'none',
+                  }}
+                >
+                  📦 打包下载 ZIP ↓
+                </a>
+              </div>
+              <div
+                style={{
+                  maxHeight: 260,
+                  overflowY: 'auto',
+                  background: '#fff',
+                  border: '1px solid #eee',
+                  borderRadius: 8,
+                }}
+              >
+                {chapterPdfs.map((ch, idx) => (
+                  <div
+                    key={ch.orderIndex}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '8px 12px',
+                      borderBottom:
+                        idx < chapterPdfs.length - 1
+                          ? '1px solid #f0f0f0'
+                          : 'none',
+                      fontSize: 13,
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: '#aaa',
+                        width: 40,
+                        textAlign: 'right',
+                        flexShrink: 0,
+                      }}
+                    >
+                      #{ch.orderIndex}
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        color: '#333',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {ch.title}
+                    </span>
+                    <a
+                      href={ch.pdfPath}
+                      download
+                      style={{
+                        color: '#6c5ce7',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        flexShrink: 0,
+                      }}
+                    >
+                      下载 ↓
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

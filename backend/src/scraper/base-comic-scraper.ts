@@ -184,6 +184,14 @@ export abstract class BaseComicScraper {
     return null;
   }
 
+  protected coverFileExists(localCoverPath: string | null): boolean {
+    if (!localCoverPath) return false;
+    const relPath = localCoverPath.startsWith('/resourceFiles/')
+      ? localCoverPath.slice('/resourceFiles/'.length)
+      : localCoverPath;
+    return existsSync(join(this.settingsService.resourcePath, relPath));
+  }
+
   protected computeImagePath(
     sourceId: string,
     chapterOrderIndex: number,

@@ -380,7 +380,7 @@ export class WebtoonsScraperService extends BaseComicScraper {
               },
             });
             resource = await this.resourceRepo.save(resource);
-          } else if (!resource.localCoverPath && resource.coverUrl) {
+          } else if (!this.coverFileExists(resource.localCoverPath) && resource.coverUrl) {
             const genreName = this.slugToGenreName(slug);
             const localCover = await this.downloadCover(
               String(card.titleNo),
@@ -417,7 +417,7 @@ export class WebtoonsScraperService extends BaseComicScraper {
             const res = await this.resourceRepo.findOne({
               where: { id: existing.resourceId },
             });
-            if (res && !res.localCoverPath && card.coverUrl) {
+            if (res && !this.coverFileExists(res.localCoverPath) && card.coverUrl) {
               const genreName = this.slugToGenreName(slug);
               const localCover = await this.downloadCover(
                 String(card.titleNo),
