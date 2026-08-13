@@ -21,8 +21,12 @@ GET /resources
 | keyword       | string | 否   | 标题关键词,模糊匹配                           |
 | scrapeStatus  | string | 否   | 抓取状态筛选: `scraped` / `not_scraped`        |
 | category      | string | 否   | 分类名称,如 `動作` / `戀愛`                    |
+| completion    | string | 否   | 连载状态: `ongoing` / `completed`             |
+| sourceSite    | string | 否   | 来源站点域名,如 `www.webtoons.com`            |
 | page          | number | 否   | 页码,默认 `1`                                  |
 | pageSize      | number | 否   | 每页条数,默认 `20`                             |
+
+> `scrapeStatus=scraped` 的判定是该资源存在任意章节记录（多源书籍任一源抓取过即算）。手机端书架固定传此值，只列出已抓取到数据的漫画。
 
 **响应示例**
 
@@ -87,12 +91,15 @@ GET /resources/:id
   "sources": [
     {
       "id": 1,
-      "resourceId": 1,
       "sourceSiteId": 1,
       "sourceUrl": "https://www.webtoons.com/...",
       "sourceId": "7709",
       "rawTitle": "惡魔女婿",
-      "scrapeStatus": "idle"
+      "scrapeStatus": "idle",
+      "isCompleted": 0,
+      "lastScrapedAt": null,
+      "lastChapterOrder": 143,
+      "sourceSite": { "id": 1, "name": "Webtoons", "domain": "www.webtoons.com" }
     }
   ],
   "chapters": [
@@ -104,7 +111,8 @@ GET /resources/:id
       "pageCount": 80,
       "isDownloaded": 1,
       "downloadedAt": "2025-01-02T00:00:00Z",
-      "sourceUrl": "https://www.webtoons.com/..."
+      "sourceUrl": "https://www.webtoons.com/...",
+      "sourceSiteId": 1
     }
   ],
   "authors": [
@@ -115,6 +123,8 @@ GET /resources/:id
   ]
 }
 ```
+
+> 同一本书存在多个来源时，`sources` 会返回多条记录（每条带 `sourceSite`），`chapters[].sourceSiteId` 标识章节归属哪个源。前端据此渲染「切换源」按钮，按源过滤章节与 PDF。
 
 ---
 
@@ -183,7 +193,13 @@ GET /resources/chapters/:chapterId/images
 POST /resources/:id/export-pdf
 ```
 
-将该资源所有已下载章节图片打包为单个 PDF。
+将该资源已下载章节图片打包为单个 PDF。
+
+**请求体（可选）**
+
+| 参数         | 类型   | 必填 | 说明                                                       |
+| ------------ | ------ | ---- | ---------------------------------------------------------- |
+| sourceSiteId | number | 否   | 只导出该来源的章节；不传则导出全书所有源章节并写回 `pdf_path` |
 
 **响应示例**
 
@@ -193,8 +209,9 @@ POST /resources/:id/export-pdf
 }
 ```
 
-- 输出路径 `resourceFiles/pdfs/{漫画标题}.pdf`，并写入 `resources.pdf_path`
-- 每章图片垂直堆叠在一页，章节间另起一页；Webtoons 首张广告图自动排除
+- 不传 `sourceSiteId`：输出 `resourceFiles/pdfs/{漫画标题}.pdf` 并写入 `resources.pdf_path`
+- 传入 `sourceSiteId`：输出 `resourceFiles/pdfs/{漫画标题}_{sourceSiteId}.pdf`，不写回 `pdf_path`（按源独立）
+- 每章图片垂直堆叠在一页，章节间另起一页；该源为 Webtoons 时首张广告图自动排除
 - 非 jpg/png 格式经 macOS `sips` 转 PNG 后导入
 
 ### 2.2 按章节导出 PDF
@@ -205,6 +222,12 @@ POST /resources/:id/export-chapter-pdfs
 
 每个已下载图片的章节单独生成一个 PDF，避免整本过大。
 
+**请求体（可选）**
+
+| 参数         | 类型   | 必填 | 说明                                         |
+| ------------ | ------ | ---- | -------------------------------------------- |
+| sourceSiteId | number | 否   | 只导出该来源的章节，输出目录按源隔离         |
+
 **响应示例**
 
 ```json
@@ -214,15 +237,15 @@ POST /resources/:id/export-chapter-pdfs
       "chapterId": 6,
       "orderIndex": 1,
       "title": "第1話",
-      "pdfPath": "/resourceFiles/pdfs/chapters_1/0001_第1話.pdf",
+      "pdfPath": "/resourceFiles/pdfs/chapters_1_2/0001_第1話.pdf",
       "imageCount": 79
     }
   ]
 }
 ```
 
-- 输出目录 `resourceFiles/pdfs/chapters_glm_5.2_ark_toC/`，文件名 `{orderIndex填充4位}_{章节标题}.pdf`
-- 无图片的章节自动跳过；每次重新生成会清空旧目录与旧 ZIP 缓存
+- 输出目录：未指定源为 `resourceFiles/pdfs/chapters_{resourceId}/`，指定源为 `chapters_{resourceId}_{sourceSiteId}/`；文件名 `{orderIndex填充4位}_{章节标题}.pdf`
+- 无图片的章节自动跳过；每次重新生成会清空对应目录与同名 ZIP 缓存
 
 ### 2.3 列出按章节 PDF
 
@@ -231,6 +254,12 @@ GET /resources/:id/chapter-pdfs
 ```
 
 扫描已生成的分章 PDF 目录，供页面刷新后回显下载链接。
+
+**Query 参数（可选）**
+
+| 参数         | 类型   | 说明                                   |
+| ------------ | ------ | -------------------------------------- |
+| sourceSiteId | number | 只列出该来源的分章 PDF（按源隔离目录） |
 
 **响应示例**
 
@@ -254,7 +283,7 @@ GET /resources/:id/chapter-pdfs
 GET /resources/:id/chapter-pdfs/zip
 ```
 
-用系统 `zip -j` 打包该资源所有分章 PDF，流式返回二进制流。
+用系统 `zip -j` 打包该资源分章 PDF，流式返回二进制流。可选 `?sourceSiteId=` 只打包某来源。
 
 **响应头**
 
@@ -321,7 +350,7 @@ POST /scraper/webtoons/scrape
 
 ### 3.3 按资源 ID 异步抓取
 
-按本地资源 ID 发起异步抓取,立即返回任务 ID,后台执行。会先停止同资源的运行中任务。
+按本地资源 ID 发起异步抓取,立即返回任务 ID,后台执行。会先停止该资源**同一来源**的运行中任务。
 
 ```
 POST /scraper/webtoons/scrape-resource
@@ -347,7 +376,7 @@ POST /scraper/webtoons/scrape-resource
 
 ### 3.4 按资源 ID 异步抓取 (通用)
 
-根据资源关联的来源站点自动路由到对应源站的 scraper（Webtoons / 动漫嗨），无需指定源站。会先停止同资源的运行中任务。
+根据资源关联的来源站点自动路由。若一本书关联了多个来源，会为**每个源同时创建并异步启动一个抓取任务**，各源任务按 `(resourceId, sourceSiteId)` 维度停止旧任务，可真正并行。
 
 ```
 POST /scraper/scrape-resource
@@ -365,11 +394,17 @@ POST /scraper/scrape-resource
 ```json
 {
   "success": true,
-  "data": { "taskId": 14 }
+  "data": {
+    "sourceCount": 2,
+    "tasks": [
+      { "sourceSiteId": 1, "domain": "www.webtoons.com", "taskId": 14 },
+      { "sourceSiteId": 2, "domain": "www.dongmanhi.com", "taskId": 15 }
+    ]
+  }
 }
 ```
 
-> 路由逻辑: 查询 `resource_sources` 表中该 resourceId 关联的 `source_sites.domain`，`www.webtoons.com` 走 Webtoons scraper，`www.dongmanhi.com` 走动漫嗨 scraper。
+> 单源书籍 `tasks` 只有一项。抓取完成后 `resources.chapter_count` 汇总该书所有源的章节总数。
 
 ---
 

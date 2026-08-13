@@ -37,12 +37,13 @@ npm install        # 安装前后端所有依赖
 ## 2. 启动服务
 
 ```bash
-# 同时启动前端和后端
+# 同时启动 PC 前端、后端和手机端
 npm run dev
 
 # 或分别启动
 npm run dev:frontend    # 前端: http://localhost:5173
 npm run dev:backend     # 后端: http://localhost:3000
+npm run dev:mobile      # 手机端: http://localhost:5174
 ```
 
 前端开发服务器会自动代理 `/api` 和 `/resourceFiles` 请求到后端。
@@ -217,10 +218,11 @@ resourceFiles/pdfs/
 
 **功能范围**
 
+- 书架只展示**已抓取到章节数据**的漫画（`scrapeStatus=scraped`），未抓取的目录项不显示
 - 搜索漫画标题、按分类/完结状态筛选、分页加载更多
-- 漫画详情：封面/作者/分类/简介 + 章节列表
+- 漫画详情：封面/作者/分类/简介 + 章节列表；一本书有多个源时可顶部「选择来源」切换，切换后章节与 PDF 均对应当前源
 - 在线阅读：全屏深色竖向滚动阅读器，懒加载，上/下章导航
-- PDF 下载：整本 PDF、按章节 PDF、打包 ZIP、逐章下载
+- PDF 下载：整本 PDF、按章节 PDF、打包 ZIP、逐章下载（按源隔离文件）
 
 > 不包含：目录抓取、单本/批量抓取、任务管理、系统设置（这些仍在 PC 端操作）。
 

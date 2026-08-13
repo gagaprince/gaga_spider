@@ -42,6 +42,8 @@ Gaga Spider 是一个网络漫画资源抓取与管理系统，支持多源站�
 | TypeScript | ~5.7 | 类型安全 |
 | oxlint | ^1.75 | Lint |
 
+> PC 端 `frontend/` 与手机端 `mobile/` 使用同一套技术栈与版本，各自是独立的 Vite 工程。
+
 ### 基础设施
 
 | 项目 | 说明 |
@@ -95,6 +97,17 @@ gaga_spider/
 │           └── dongmanhi/                # 动漫嗨源站
 │               ├── dongmanhi-parser.ts
 │               └── dongmanhi-scraper.service.ts
+│
+├── mobile/                  # 手机端 React 应用（仅浏览/阅读/导出）
+│   ├── src/
+│   │   ├── main.tsx
+│   │   ├── App.tsx           # 顶部栏 + 阅读器全屏布局
+│   │   ├── api/client.ts     # 与 PC 端对齐的 API 客户端
+│   │   └── pages/
+│   │       ├── SearchPage.tsx   # 书架/搜索（只列已抓取漫画）
+│   │       ├── DetailPage.tsx   # 详情+多源切换+PDF导出
+│   │       └── ReaderPage.tsx   # 长图阅读器
+│   └── vite.config.ts
 │
 ├── docs/                     # 文档
 │   ├── ARCHITECTURE.md       # 本文档
@@ -299,6 +312,9 @@ scrape_tasks (任务) ──N:1──> source_sites
 - 同一漫画如果多站都有，会创建多个 `resource_sources` 记录指向同一个 `resource`
 - `chapters` 和 `chapter_images` 通过 `source_site_id` 区分来源
 - 图片存储路径用源站原始 ID（`sourceId`）而非本地 resourceId，避免多站冲突
+- **抓取并行**：通用抓取接口 `POST /scraper/scrape-resource` 会遍历该书的全部 `resource_sources`，为每个源分别创建并异步启动一个抓取任务；`stopRunningTasks` 按 `(resourceId, sourceSiteId)` 维度停止旧任务，因此多源可真正并行抓取而互不取消
+- **章节计数**：抓取完成后 `resources.chapter_count` 由 `chapterRepo.count({ resourceId })` 汇总全书所有源的章节数，不再被单个源覆盖
+- **详情聚合**：`GET /resources/:id` 返回带 `sourceSite` 信息的 `sources` 数组，且每个 `chapter` 携带 `sourceSiteId`，供前端按源切换展示
 
 完整表结构见 `docs/database/schema-design.md`，建表语句见 `docs/database/schema.sql`。
 
@@ -336,31 +352,20 @@ ScraperService.discoverCatalog()
 POST /scraper/scrape-resource { resourceId, maxChapters }
   │
   ▼
-resolveScraperByResourceId()          # 按 resourceId 查 sourceSite 路由
+ScraperController 遍历该书全部 resource_sources
   │
   ▼
-ScraperService.scrapeByResourceIdAsync()
-  ├── stopRunningTasks(resourceId)    # 停止旧任务
-  ├── create task (pending)
-  ├── 异步执行 scrapeOneWithTask():
-  │     ├── markRunning(taskId)
-  │     ├── doScrape():
-  │     │     ├── fetchPage(详情页URL)
-  │     │     ├── parser.parseDetail()       # 元数据
-  │     │     ├── saveResource + saveAuthors + saveCategory
-  │     │     ├── parser.parseChapterList()  # 章节列表
-  │     │     └── 逐章:
-  │     │           ├── saveChapter()         # 入库
-  │     │           ├── fetchPage(阅读页URL)
-  │     │           ├── parser.parseViewerImages()  # 图片列表
-  │     │           └── 逐图:
-  │     │                 ├── computeImagePath()
-  │     │                 ├── 检查本地文件存在 -> 跳过
-  │     │                 ├── downloadChapterImage()  # 下载
-  │     │                 └── 更新/插入 chapter_images 记录
-  │     └── markSuccess / markFailed
-  └── 返回 { taskId }  # 立即返回
+每个源 resolveScraperByDomain() 后并行启动:
+  ScraperService.scrapeByResourceIdAsync()
+    ├── stopRunningTasks(resourceId, undefined, sourceSiteId)  # 仅停同源旧任务
+    ├── create task (pending)
+    ├── 异步执行 scrapeOneWithTask() (同右抓取流程)
+    └── 返回该源 taskId
+  │
+  └── 汇总返回 { tasks: [{ sourceSiteId, domain, taskId }...], sourceCount }
 ```
+
+> 多源书籍点击一次「抓取」会同时创建 N 个任务（每源一个），在任务列表中可分别查看进度与失败原因。
 
 **增量抓取机制**：
 
@@ -372,19 +377,27 @@ ScraperService.scrapeByResourceIdAsync()
 ### 6.3 PDF 导出
 
 ```
-POST /resources/:id/export-pdf
+POST /resources/:id/export-pdf           (可选 body.sourceSiteId)
+POST /resources/:id/export-chapter-pdfs  (可选 body.sourceSiteId)
+GET  /resources/:id/chapter-pdfs         (可选 query.sourceSiteId)
   │
   ▼
 ResourceService.exportPdf()
-  ├── 查询所有章节 + 已下载图片
+  ├── 按 sourceSiteId 过滤章节(未传则全书)
   ├── 按 orderIndex 排序
   ├── 每章图片垂直堆叠为一页 (无缝拼接)
-  │     ├── 首图(Webtoons广告图)跳过
+  │     ├── 该源为 Webtoons 时首图(广告图)跳过
   │     ├── 非 jpg/png 格式 -> sips 转 PNG
   │     └── 单页超 14400pt 自动分页
-  ├── 输出 resourceFiles/pdfs/{标题}.pdf
-  └── 更新 resources.pdf_path
+  ├── 指定源输出 resourceFiles/pdfs/{标题}_{sourceSiteId}.pdf (不写回 pdf_path)
+  └── 未指定源输出 resourceFiles/pdfs/{标题}.pdf 并更新 resources.pdf_path
 ```
+
+**按源隔离的分章 PDF**：
+
+- 目录命名 `resourceFiles/pdfs/chapters_{resourceId}_{sourceSiteId}/`，未指定源时为 `chapters_{resourceId}/`，避免多源章节文件互相覆盖
+- 对应的 ZIP 打包缓存 `chapters_{resourceId}_{sourceSiteId}.zip` 也按源隔离
+- 阅读器上/下章导航（`getChapterWithImages`）在章节有 `sourceSiteId` 时只在同源章节间切换，不会跨源跳转
 
 ---
 
@@ -437,6 +450,31 @@ async function request<T>(path, options): Promise<T> {
 ### 7.4 阅读器懒加载
 
 `ChapterReader` 使用 `visibleCount` 状态控制渲染图片数量（初始 10 张），滚动到底部时递增加载更多，避免一次性渲染数百张图片导致卡顿。
+
+### 7.5 手机端（mobile/）
+
+`mobile/` 是与 PC 端同构的独立 React 19 + Vite 工程（开发端口 `5174`，`host:true` 供同局域网手机访问），**共用同一套后端 API，仅提供浏览/阅读/导出，不含抓取控制与任务管理**。
+
+**技术选型与 PC 端一致**：React Router v7、TypeScript、Vite；不引入 UI 组件库，全部用内联样式，针对触屏做了单列布局、`env(safe-area-inset-*)` 安全区适配和大触控区。
+
+**页面结构**（`mobile/src/pages/`）：
+
+| 页面 | 职责 |
+|------|------|
+| `SearchPage` | 书架/搜索首页，固定 `scrapeStatus=scraped` 只展示已抓取到章节的漫画；2 列卡片网格 + 「加载更多」分页 |
+| `DetailPage` | 漫画详情、多源切换、整本/分章 PDF 导出 |
+| `ReaderPage` | 长图阅读器 |
+
+API 封装位于 `mobile/src/api/client.ts`，提供与 PC 端对齐的 `exportPdf(id, sourceSiteId?)`、`exportChapterPdfs`、`listChapterPdfs`、`chapterPdfsZipUrl` 等方法。
+
+### 7.6 URL 状态与浏览历史
+
+列表/筛选/源切换等可回退的 UI 状态会同步到 URL query，使浏览器前进/后退可恢复视图：
+
+- **PC 书架**（`BookshelfPage`）：`q`（关键词）、`scrape`、`category`、`completion`、`sourceSite`、`page`；任一筛选项变化时重置到第 1 页并新增 history 记录
+- **详情页多源切换**（PC `ResourceDetail` / 手机 `DetailPage`）：选中源写入 `?sourceSiteId=`，切换源即新增一条 history；URL 中的源无效或缺失时用第一个源以 `replace` 静默校正，不污染历史
+
+实现上使用 React Router 的 `useSearchParams`：读取参数作为派生状态，变更时构造新的 `URLSearchParams` 并调用 `setSearchParams`（需要不增加历史时传 `{ replace: true }`）。
 
 ---
 
@@ -522,7 +560,7 @@ export class XxxScraperService extends BaseComicScraper {
 ### 步骤 4：注册路由
 
 1. `scraper.module.ts`：providers 和 exports 加入新 Service
-2. `scraper.controller.ts`：新增 `POST /scraper/{站点}/discover` 路由；在 `resolveScraperByResourceId` 中加入域名判断
+2. `scraper.controller.ts`：新增 `POST /scraper/{站点}/discover` 路由；在按域名解析 scraper 的逻辑（`resolveScraperByDomain`）中加入分支
 3. `task.controller.ts`：在 `resolveScraperByTask` 中加入域名判断；retry 方法中加入 instanceof 分支
 4. `api/client.ts`：新增 `discoverXxx` 方法
 5. `BookshelfPage.tsx`：源站下拉框加入新选项

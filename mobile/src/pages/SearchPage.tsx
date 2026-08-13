@@ -47,6 +47,7 @@ export function SearchPage() {
           keyword: kw || undefined,
           category: cat || undefined,
           completion: comp || undefined,
+          scrapeStatus: 'scraped',
           page: 1,
           pageSize: PAGE_SIZE,
         });
@@ -76,6 +77,7 @@ export function SearchPage() {
         keyword: committedKeyword || undefined,
         category: category || undefined,
         completion: completion || undefined,
+        scrapeStatus: 'scraped',
         page: next,
         pageSize: PAGE_SIZE,
       });
@@ -257,9 +259,9 @@ function Card({ r, onClick }: { r: Resource; onClick: () => void }) {
         <span style={badge(statusColors[r.status] || '#999', { top: 6, right: 6 })}>
           {statusLabels[r.status] || r.status}
         </span>
-        <span style={badge(isScraped ? '#27ae60' : '#e67e22', { top: 6, left: 6 })}>
-          {isScraped ? '✓' : '空'}
-        </span>
+        {isScraped && (
+          <span style={badge('#27ae60', { top: 6, left: 6 })}>✓</span>
+        )}
       </div>
       <div style={{ padding: '8px 10px' }}>
         <h3

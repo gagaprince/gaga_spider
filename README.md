@@ -25,7 +25,7 @@ gaga_spider/
 ```bash
 nvm use 20
 npm install          # 安装前后端所有依赖
-npm run dev          # 同时启动前端(:5173)和后端(:3000)
+npm run dev          # 同时启动 PC前端(:5173)、后端(:3000)和手机端(:5174)
 
 # 或单独启动
 npm run dev:frontend
