@@ -3,10 +3,17 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, type Resource } from '../api/client';
 import { ScrapeModal } from './ScrapeModal';
 import { BatchScrapeModal } from './BatchScrapeModal';
+import { useAgeRating } from '../hooks/useAgeRating';
 
 interface CategoryInfo {
   name: string;
   count: number;
+}
+
+interface SourceSiteInfo {
+  id: number;
+  name: string;
+  domain: string;
 }
 
 export function BookshelfPage() {
@@ -22,13 +29,15 @@ export function BookshelfPage() {
   const completionFilter = searchParams.get('completion') || '';
   const sourceSiteFilter = searchParams.get('sourceSite') || '';
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
+  const [sourceSites, setSourceSites] = useState<SourceSiteInfo[]>([]);
   const [showScrape, setShowScrape] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
   const [toast, setToast] = useState('');
   const [discovering, setDiscovering] = useState(false);
-  const [discoverSite, setDiscoverSite] = useState<'webtoons' | 'dongmanhi'>('webtoons');
+  const [discoverDomain, setDiscoverDomain] = useState('');
   const [scrapingIds, setScrapingIds] = useState<Set<number>>(new Set());
   const [jumpPage, setJumpPage] = useState('');
+  const [ageRating] = useAgeRating();
 
   const pageSize = 50;
 
@@ -75,6 +84,7 @@ export function BookshelfPage() {
        category: categoryFilter || undefined,
         completion: completionFilter || undefined,
        sourceSite: sourceSiteFilter || undefined,
+        ageRating,
        page,
         pageSize,
       });
@@ -85,16 +95,38 @@ export function BookshelfPage() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, scrapeFilter, categoryFilter, completionFilter, sourceSiteFilter, page]);
+  }, [keyword, scrapeFilter, categoryFilter, completionFilter, sourceSiteFilter, ageRating, page]);
 
   const fetchCategories = useCallback(async () => {
     try {
-      const cats = await api.getCategories();
+      const cats = await api.getCategories(ageRating);
       setCategories(cats);
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [ageRating]);
+
+  const fetchSourceSites = useCallback(async () => {
+    try {
+      const sites = await api.getSourceSites(ageRating);
+      setSourceSites(sites);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [ageRating]);
+
+  useEffect(() => {
+    if (sourceSiteFilter && !sourceSites.some((s) => s.domain === sourceSiteFilter)) {
+      updateParams({ sourceSite: '' });
+    }
+    if (sourceSites.length > 0) {
+      if (!sourceSites.some((s) => s.domain === discoverDomain)) {
+        setDiscoverDomain(sourceSites[0].domain);
+      }
+    } else {
+      setDiscoverDomain('');
+    }
+  }, [sourceSites, sourceSiteFilter, discoverDomain, updateParams]);
 
   useEffect(() => {
     fetchResources();
@@ -104,19 +136,27 @@ export function BookshelfPage() {
     fetchCategories();
   }, [fetchCategories]);
 
+  useEffect(() => {
+    fetchSourceSites();
+  }, [fetchSourceSites]);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 4000);
   };
 
   const handleDiscover = async () => {
+    if (!discoverDomain) return;
     setDiscovering(true);
-    const siteName = discoverSite === 'webtoons' ? 'Webtoons' : '动漫嗨';
+    const site = sourceSites.find((s) => s.domain === discoverDomain);
+    const siteName = site?.name || discoverDomain;
     showToast(`正在抓取${siteName}目录，请稍候...`);
     try {
-      const resp = discoverSite === 'webtoons'
+      const resp = discoverDomain === 'www.webtoons.com'
         ? await api.discoverWebtoons()
-        : await api.discoverDongmanhi();
+        : discoverDomain === 'www.dongmanhi.com'
+          ? await api.discoverDongmanhi()
+          : await api.discoverManhuazhan();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       goToPage(1, true);
       fetchResources();
@@ -199,27 +239,30 @@ export function BookshelfPage() {
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">全部源站</option>
-          <option value="www.webtoons.com">Webtoons</option>
-          <option value="www.dongmanhi.com">动漫嗨</option>
+          {sourceSites.map((s) => (
+            <option key={s.id} value={s.domain}>{s.name}</option>
+          ))}
         </select>
         <span style={{ color: '#888', fontSize: 14 }}>共 {total} 部</span>
         <div style={{ flex: 1 }} />
         <select
-          value={discoverSite}
-          onChange={(e) => setDiscoverSite(e.target.value as 'webtoons' | 'dongmanhi')}
-          disabled={discovering}
+          value={discoverDomain}
+          onChange={(e) => setDiscoverDomain(e.target.value)}
+          disabled={discovering || sourceSites.length === 0}
           style={{ padding: '8px 8px', border: '1px solid #6c5ce7', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
-          <option value="webtoons">Webtoons</option>
-          <option value="dongmanhi">动漫嗨</option>
+          {sourceSites.map((s) => (
+            <option key={s.id} value={s.domain}>{s.name}</option>
+          ))}
         </select>
         <button
           onClick={handleDiscover}
-          disabled={discovering}
+          disabled={discovering || !discoverDomain}
           style={{
             padding: '8px 16px', border: '1px solid #6c5ce7', borderRadius: 6,
-            background: discovering ? '#f5f5f5' : '#fff', color: '#6c5ce7',
-            cursor: discovering ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600,
+            background: discovering || !discoverDomain ? '#f5f5f5' : '#fff',
+            color: discovering || !discoverDomain ? '#aaa' : '#6c5ce7',
+            cursor: discovering || !discoverDomain ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600,
           }}
         >
           {discovering ? '抓取中...' : '📥 抓取目录'}

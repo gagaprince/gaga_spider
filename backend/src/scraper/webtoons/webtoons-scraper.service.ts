@@ -374,6 +374,7 @@ export class WebtoonsScraperService extends BaseComicScraper {
 
             resource = this.resourceRepo.create({
               type: ResourceType.COMIC,
+              ageRating: this.ageRating,
               title: card.title,
               coverUrl: card.coverUrl,
               localCoverPath: localCover,
@@ -388,7 +389,10 @@ export class WebtoonsScraperService extends BaseComicScraper {
               },
             });
             resource = await this.resourceRepo.save(resource);
-          } else if (!this.coverFileExists(resource.localCoverPath) && resource.coverUrl) {
+          } else if (
+            !this.coverFileExists(resource.localCoverPath) &&
+            resource.coverUrl
+          ) {
             const genreName = this.slugToGenreName(slug);
             const localCover = await this.downloadCover(
               String(card.titleNo),
@@ -425,7 +429,11 @@ export class WebtoonsScraperService extends BaseComicScraper {
             const res = await this.resourceRepo.findOne({
               where: { id: existing.resourceId },
             });
-            if (res && !this.coverFileExists(res.localCoverPath) && card.coverUrl) {
+            if (
+              res &&
+              !this.coverFileExists(res.localCoverPath) &&
+              card.coverUrl
+            ) {
               const genreName = this.slugToGenreName(slug);
               const localCover = await this.downloadCover(
                 String(card.titleNo),
@@ -488,6 +496,7 @@ export class WebtoonsScraperService extends BaseComicScraper {
         name: 'Webtoons',
         domain: 'www.webtoons.com',
         resourceType: SiteResourceType.COMIC,
+        ageRating: this.ageRating,
         config: { baseUrl: this.baseUrl, genresPath: '/genres' },
         rateLimit: this.rateLimitMs,
         status: 1,
@@ -533,6 +542,7 @@ export class WebtoonsScraperService extends BaseComicScraper {
     if (!resource) {
       resource = this.resourceRepo.create({
         type: ResourceType.COMIC,
+        ageRating: this.ageRating,
         title: detail.title,
         summary: detail.summary,
         coverUrl: detail.coverUrl,

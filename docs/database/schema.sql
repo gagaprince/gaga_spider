@@ -18,6 +18,7 @@ CREATE TABLE source_sites (
   config        JSON           NULL     COMMENT '抓取规则(选择器/URL模板/编码等)',
   rate_limit    INT            NOT NULL DEFAULT 1000 COMMENT '请求间隔(ms)',
   status        TINYINT        NOT NULL DEFAULT 1 COMMENT '1=启用 0=禁用',
+  age_rating    ENUM('all','adult') NOT NULL DEFAULT 'all' COMMENT '内容分级: all=全年龄段, adult=成人限定',
   created_at    DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_domain (domain)
@@ -41,6 +42,7 @@ CREATE TABLE resources (
   chapter_count    INT            NOT NULL DEFAULT 0 COMMENT '总章节数',
   is_complete      TINYINT        NOT NULL DEFAULT 0 COMMENT '内容是否已抓全',
   category         VARCHAR(50)    NULL     COMMENT '主分类(冗余字段,便于筛选)',
+  age_rating       ENUM('all','adult') NOT NULL DEFAULT 'all' COMMENT '内容分级: all=全年龄段, adult=成人限定',
   pdf_path         VARCHAR(500)   NULL     COMMENT '导出 PDF 的本地路径',
   extra            JSON           NULL     COMMENT '扩展元数据',
   created_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,

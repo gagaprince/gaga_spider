@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { WebtoonsScraperService } from './webtoons/webtoons-scraper.service';
 import { DongmanhiScraperService } from './dongmanhi/dongmanhi-scraper.service';
+import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -18,6 +19,7 @@ export class ScraperController {
   constructor(
     private readonly webtoonsScraper: WebtoonsScraperService,
     private readonly dongmanhiScraper: DongmanhiScraperService,
+    private readonly manhuazhanScraper: ManhuazhanScraperService,
     @InjectRepository(ResourceSource)
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(SourceSite)
@@ -106,10 +108,20 @@ export class ScraperController {
     return { success: true, data: result };
   }
 
+  // ===== 漫画栈 (manhuazhan/60ti) =====
+  @Post('manhuazhan/discover')
+  async discoverManhuazhan() {
+    const result = await this.manhuazhanScraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   // ===== 路由解析 =====
   private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
       return this.dongmanhiScraper;
+    }
+    if (domain === 'www.60ti.com') {
+      return this.manhuazhanScraper;
     }
     return this.webtoonsScraper;
   }

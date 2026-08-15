@@ -24,6 +24,7 @@ export class ResourceController {
     @Query('category') category?: string,
     @Query('completion') completion?: string,
     @Query('sourceSite') sourceSite?: string,
+    @Query('ageRating') ageRating?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -34,14 +35,20 @@ export class ResourceController {
       category,
       completion,
       sourceSite,
+      ageRating,
       page: page ? parseInt(page, 10) : 1,
       pageSize: pageSize ? parseInt(pageSize, 10) : 20,
     });
   }
 
   @Get('categories/list')
-  async listCategories() {
-    return this.resourceService.listCategories();
+  async listCategories(@Query('ageRating') ageRating?: string) {
+    return this.resourceService.listCategories(ageRating || 'all');
+  }
+
+  @Get('source-sites/list')
+  listSourceSites(@Query('ageRating') ageRating?: string) {
+    return this.resourceService.listSourceSites(ageRating || 'all');
   }
 
   @Get('chapters/:chapterId/images')

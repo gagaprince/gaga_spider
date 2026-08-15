@@ -543,6 +543,8 @@ export class XxxScraperService extends BaseComicScraper {
 
   protected get baseUrl() { return 'https://xxx.com'; }
   protected get rateLimitMs() { return 1000; }
+  // 成人站点覆盖此 getter 返回 AgeRating.ADULT, 源站与发现的资源会自动标记
+  // protected get ageRating() { return AgeRating.ADULT; }
 
   constructor(/* 同 webtoons 的构造函数参数 */) {
     super(/* 传给基类 */);

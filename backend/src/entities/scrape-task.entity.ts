@@ -24,7 +24,12 @@ export class ScrapeTask {
   @Column({ name: 'source_site_id' })
   sourceSiteId: number;
 
-  @Column({ name: 'task_type', type: 'enum', enum: TaskType, default: TaskType.FULL })
+  @Column({
+    name: 'task_type',
+    type: 'enum',
+    enum: TaskType,
+    default: TaskType.FULL,
+  })
   taskType: TaskType;
 
   @Column({ type: 'enum', enum: TaskStatus, default: TaskStatus.PENDING })
@@ -45,7 +50,11 @@ export class ScrapeTask {
   @Column({ name: 'error_message', type: 'text', nullable: true })
   errorMessage: string;
 
-  @Column({ name: 'scheduled_at', type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({
+    name: 'scheduled_at',
+    type: 'datetime',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   scheduledAt: Date;
 
   @Column({ name: 'started_at', type: 'datetime', nullable: true })

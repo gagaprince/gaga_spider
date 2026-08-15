@@ -23,6 +23,7 @@ GET /resources
 | category      | string | 否   | 分类名称,如 `動作` / `戀愛`                    |
 | completion    | string | 否   | 连载状态: `ongoing` / `completed`             |
 | sourceSite    | string | 否   | 来源站点域名,如 `www.webtoons.com`            |
+| ageRating     | string | 否   | 内容分级: `all`(默认) / `adult`               |
 | page          | number | 否   | 页码,默认 `1`                                  |
 | pageSize      | number | 否   | 每页条数,默认 `20`                             |
 
@@ -46,6 +47,7 @@ GET /resources
       "chapterCount": 143,
       "isComplete": 0,
       "category": "動作",
+      "ageRating": "all",
       "extra": { "likeCount": "12.3万", "genre": "action" },
       "createdAt": "2025-01-01T00:00:00Z",
       "updatedAt": "2025-01-02T00:00:00Z"
@@ -131,8 +133,14 @@ GET /resources/:id
 ### 1.3 获取分类列表
 
 ```
-GET /resources/categories/list
+GET /resources/categories/list?ageRating=all
 ```
+
+**Query 参数**
+
+| 参数      | 类型   | 必填 | 说明                                 |
+| --------- | ------ | ---- | ------------------------------------ |
+| ageRating | string | 否   | `all`(默认) / `adult`,按分级筛选分类 |
 
 **响应示例**
 
@@ -146,6 +154,26 @@ GET /resources/categories/list
 ---
 
 ### 1.4 获取章节图片
+
+### 1.5 获取源站列表
+
+```
+GET /resources/source-sites/list?ageRating=all
+```
+
+**Query 参数**
+
+| 参数      | 类型   | 必填 | 说明                                   |
+| --------- | ------ | ---- | -------------------------------------- |
+| ageRating | string | 否   | `all`(默认) / `adult`,按分级筛选源站   |
+
+**响应示例**
+
+```json
+[
+  { "id": 1, "name": "Webtoons", "domain": "www.webtoons.com" }
+]
+```
 
 ```
 GET /resources/chapters/:chapterId/images

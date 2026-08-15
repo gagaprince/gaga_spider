@@ -38,7 +38,9 @@ export class ChapterImage {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Chapter, (chapter) => chapter.images, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Chapter, (chapter) => chapter.images, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'chapter_id' })
   chapter: Chapter;
 }

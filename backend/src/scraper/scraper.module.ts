@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WebtoonsScraperService } from './webtoons/webtoons-scraper.service';
 import { DongmanhiScraperService } from './dongmanhi/dongmanhi-scraper.service';
+import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.service';
 import { ScraperController } from './scraper.controller';
 import { SourceSite } from '../entities/source-site.entity';
 import { Resource } from '../entities/resource.entity';
@@ -32,7 +33,15 @@ import { SettingsModule } from '../settings/settings.module';
     SettingsModule,
   ],
   controllers: [ScraperController],
-  providers: [WebtoonsScraperService, DongmanhiScraperService],
-  exports: [WebtoonsScraperService, DongmanhiScraperService],
+  providers: [
+    WebtoonsScraperService,
+    DongmanhiScraperService,
+    ManhuazhanScraperService,
+  ],
+  exports: [
+    WebtoonsScraperService,
+    DongmanhiScraperService,
+    ManhuazhanScraperService,
+  ],
 })
 export class ScraperModule {}

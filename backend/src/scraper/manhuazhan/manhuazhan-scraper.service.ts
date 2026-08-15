@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BaseComicScraper, ScrapeResult } from '../base-comic-scraper';
-import { DongmanhiParser } from './dongmanhi-parser';
+import { ManhuazhanParser } from './manhuazhan-parser';
 import { SourceSite } from '../../entities/source-site.entity';
 import { Resource } from '../../entities/resource.entity';
 import { ResourceSource } from '../../entities/resource-source.entity';
@@ -19,12 +19,12 @@ import { SettingsService } from '../../settings/settings.service';
 import { existsSync } from 'fs';
 
 @Injectable()
-export class DongmanhiScraperService extends BaseComicScraper {
-  protected readonly logger = new Logger(DongmanhiScraperService.name);
-  private readonly parser: DongmanhiParser;
+export class ManhuazhanScraperService extends BaseComicScraper {
+  protected readonly logger = new Logger(ManhuazhanScraperService.name);
+  private readonly parser: ManhuazhanParser;
 
   protected get baseUrl(): string {
-    return 'https://www.dongmanhi.com';
+    return 'https://www.60ti.com';
   }
   protected get rateLimitMs(): number {
     return 1000;
@@ -65,7 +65,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
       taskService,
       settingsService,
     );
-    this.parser = new DongmanhiParser();
+    this.parser = new ManhuazhanParser();
   }
 
   async scrapeByResourceIdAsync(
@@ -89,26 +89,26 @@ export class DongmanhiScraperService extends BaseComicScraper {
     if (!rs) {
       throw new Error(`资源 ${resourceId} 没有关联的来源记录`);
     }
-    const comicId = rs.sourceId;
+    const slug = rs.sourceId;
     const task = await this.taskService.create({
       resourceId,
       sourceSiteId: site.id,
-      config: { comicId, maxChapters },
+      config: { slug, maxChapters },
     });
-    this.scrapeOneWithTask(task.id, comicId, maxChapters).catch(() => {});
+    this.scrapeOneWithTask(task.id, slug, maxChapters).catch(() => {});
     return { taskId: task.id };
   }
 
   async scrapeOneWithTask(
     taskId: number,
-    comicId: string,
+    slug: string,
     maxChapters = 0,
   ): Promise<ScrapeResult> {
-    this.logger.log(`[任务 ${taskId}] 开始抓取 comicId=${comicId}`);
+    this.logger.log(`[任务 ${taskId}] 开始抓取 slug=${slug}`);
     await this.taskService.markRunning(taskId);
 
     try {
-      const result = await this.doScrape(taskId, comicId, maxChapters);
+      const result = await this.doScrape(taskId, slug, maxChapters);
       await this.taskService.markSuccess(
         taskId,
         result.chapters.length,
@@ -130,13 +130,13 @@ export class DongmanhiScraperService extends BaseComicScraper {
 
   private async doScrape(
     taskId: number,
-    comicId: string,
+    slug: string,
     maxChapters: number,
   ): Promise<ScrapeResult> {
     this.checkCancelled(taskId);
     const site = await this.ensureSourceSite();
 
-    const detailUrl = `${this.baseUrl}/manhua/${comicId}/`;
+    const detailUrl = `${this.baseUrl}/comic_${slug}.html`;
     this.logger.log(`[任务 ${taskId}] 详情页: ${detailUrl}`);
     await this.taskService.log(taskId, 'info', `抓取详情页: ${detailUrl}`);
 
@@ -150,7 +150,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
     await this.saveResourceSource(
       site,
       resource,
-      comicId,
+      slug,
       detailUrl,
       detail.status,
     );
@@ -194,7 +194,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
       if (chapter) {
         const images = await this.scrapeChapterImages(
           taskId,
-          comicId,
+          slug,
           chapter,
           ch.viewerUrl,
         );
@@ -220,75 +220,83 @@ export class DongmanhiScraperService extends BaseComicScraper {
   async discoverCatalog(
     taskId?: number,
   ): Promise<{ discovered: number; new: number }> {
-    this.logger.log('开始抓取动漫嗨目录...');
+    this.logger.log('开始抓取漫画栈目录...');
     const site = await this.ensureSourceSite();
 
-    // URL 格式 /list/--{filter}-{sort}/{page}.html
-    // 全站发现: 遍历所有组合 region(0-6) × filter(0-2) × sort(0-1) = 42 个分类
     let discovered = 0;
     let newCount = 0;
-    const seenComicIds = new Set<string>();
+    const seenSlugs = new Set<string>();
 
-    const regions = ['0', '1', '2', '3', '4', '5', '6'];
-    const filters = ['0', '1', '2'];
-    const sorts = ['0', '1'];
+    const listBaseUrl = `${this.baseUrl}/category/`;
+    const { html: firstHtml } = await this.fetchPage(listBaseUrl);
+    const tags = this.parser.parseTagList(firstHtml);
+    this.logger.log(`发现 ${tags.length} 个标签,按标签遍历获取分类`);
+    if (taskId) {
+      await this.taskService.log(
+        taskId,
+        'info',
+        `发现 ${tags.length} 个标签,开始按标签遍历`,
+      );
+    }
 
-    for (const region of regions) {
-      for (const filter of filters) {
-        for (const sort of sorts) {
+    for (let t = 0; t < tags.length; t++) {
+      if (taskId) this.checkCancelled(taskId);
+      const tag = tags[t];
+      const tagBaseUrl = `${this.baseUrl}/category/tags/${tag.tagId}`;
+      this.logger.log(`[${t + 1}/${tags.length}] 标签: ${tag.name}`);
+
+      let allDupsInTag = false;
+
+      try {
+        const { html: tagFirstHtml } = await this.fetchPage(tagBaseUrl);
+        const tagTotalPages =
+          this.parser.parsePagination(tagFirstHtml).totalPages;
+        const firstCards = this.parser.parseComicCards(tagFirstHtml, tag.name);
+
+        let dupStreak = 0;
+        for (const card of firstCards) {
           if (taskId) this.checkCancelled(taskId);
-
-          const comboKey = `${region}-0-${filter}-${sort}`;
-          const listBaseUrl = `${this.baseUrl}/list/${comboKey}/`;
-          this.logger.log(`抓取分类: ${comboKey}`);
-          if (taskId)
-            await this.taskService.log(taskId, 'info', `抓取分类: ${comboKey}`);
-
-          let totalPages = 1;
-          try {
-            const { html: firstHtml } = await this.fetchPage(listBaseUrl);
-            totalPages = this.parser.parsePagination(firstHtml).totalPages;
-            const firstCards = this.parser.parseComicCards(firstHtml);
-            for (const card of firstCards) {
-              if (taskId) this.checkCancelled(taskId);
-              const result = await this.processCard(card, site, seenComicIds);
-              if (result === 'new') newCount++;
-              if (result !== 'dup') discovered++;
-            }
-          } catch (e) {
-            this.logger.warn(`分类 ${comboKey} 首页抓取失败,跳过: ${e}`);
-            continue;
+          const result = await this.processCard(card, site, seenSlugs);
+          if (result === 'new') newCount++;
+          if (result !== 'dup') {
+            discovered++;
+            dupStreak = 0;
+          } else {
+            dupStreak++;
           }
+        }
+        if (dupStreak === firstCards.length && firstCards.length > 0) {
+          allDupsInTag = true;
+        }
 
-          this.logger.log(`分类 ${comboKey}: 共 ${totalPages} 页`);
-
-          for (let page = 2; page <= totalPages; page++) {
+        if (!allDupsInTag) {
+          for (let page = 2; page <= tagTotalPages; page++) {
             if (taskId) this.checkCancelled(taskId);
-            const pageUrl = `${listBaseUrl}${page}.html`;
-            this.logger.log(`分类 ${comboKey} 第 ${page}/${totalPages} 页`);
-            if (taskId)
-              await this.taskService.log(
-                taskId,
-                'info',
-                `分类 ${comboKey} 第 ${page}/${totalPages} 页`,
-              );
-
+            const pageUrl = `${tagBaseUrl}/page/${page}`;
             try {
               const { html } = await this.fetchPage(pageUrl);
-              const cards = this.parser.parseComicCards(html);
+              const cards = this.parser.parseComicCards(html, tag.name);
+              if (cards.length === 0) break;
+
+              let pageDupCount = 0;
               for (const card of cards) {
                 if (taskId) this.checkCancelled(taskId);
-                const result = await this.processCard(card, site, seenComicIds);
+                const result = await this.processCard(card, site, seenSlugs);
                 if (result === 'new') newCount++;
-                if (result !== 'dup') discovered++;
+                if (result !== 'dup') {
+                  discovered++;
+                } else {
+                  pageDupCount++;
+                }
               }
+              if (pageDupCount === cards.length) break;
             } catch (e) {
-              this.logger.warn(
-                `分类 ${comboKey} 第 ${page} 页抓取失败,跳过: ${e}`,
-              );
+              this.logger.warn(`标签 ${tag.name} 第 ${page} 页抓取失败: ${e}`);
             }
           }
         }
+      } catch (e) {
+        this.logger.warn(`标签 ${tag.name} 首页抓取失败,跳过: ${e}`);
       }
     }
 
@@ -299,16 +307,23 @@ export class DongmanhiScraperService extends BaseComicScraper {
   }
 
   private async processCard(
-    card: ReturnType<DongmanhiParser['parseComicCards']>[0],
+    card: ReturnType<ManhuazhanParser['parseComicCards']>[0],
     site: SourceSite,
-    seenComicIds: Set<string>,
+    seenSlugs: Set<string>,
   ): Promise<'new' | 'existing' | 'dup'> {
-    if (seenComicIds.has(card.comicId)) return 'dup';
-    seenComicIds.add(card.comicId);
+    if (seenSlugs.has(card.slug)) return 'dup';
+    seenSlugs.add(card.slug);
 
     const existing = await this.resourceSourceRepo.findOne({
-      where: { sourceSiteId: site.id, sourceId: card.comicId },
+      where: { sourceSiteId: site.id, sourceId: card.slug },
     });
+
+    const mappedStatus =
+      card.status === '已完结'
+        ? 'completed'
+        : card.status === '连载中'
+          ? 'ongoing'
+          : 'unknown';
 
     if (!existing) {
       let resource = await this.resourceRepo.findOne({
@@ -316,7 +331,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
       });
       if (!resource) {
         const localCover = await this.downloadCover(
-          card.comicId,
+          card.slug,
           card.coverUrl,
           'other',
         );
@@ -326,15 +341,10 @@ export class DongmanhiScraperService extends BaseComicScraper {
           title: card.title,
           coverUrl: card.coverUrl,
           localCoverPath: localCover,
-          status:
-            card.status === '完结'
-              ? 'completed'
-              : card.status === '连载'
-                ? 'ongoing'
-                : 'unknown',
+          status: mappedStatus,
           language: 'zh-cn',
-          isComplete: card.status === '完结' ? 1 : 0,
-          category: null,
+          isComplete: mappedStatus === 'completed' ? 1 : 0,
+          category: card.category || null,
           extra: {},
         });
         resource = await this.resourceRepo.save(resource);
@@ -343,7 +353,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
         card.coverUrl
       ) {
         const localCover = await this.downloadCover(
-          card.comicId,
+          card.slug,
           card.coverUrl,
           'other',
         );
@@ -358,10 +368,14 @@ export class DongmanhiScraperService extends BaseComicScraper {
         resourceId: resource.id,
         sourceSiteId: site.id,
         sourceUrl: card.detailUrl,
-        sourceId: card.comicId,
+        sourceId: card.slug,
         rawTitle: card.title,
         scrapeStatus: 'idle',
       });
+
+      if (card.author) {
+        await this.saveAuthors(resource, [card.author]);
+      }
 
       return 'new';
     } else {
@@ -369,9 +383,13 @@ export class DongmanhiScraperService extends BaseComicScraper {
         const res = await this.resourceRepo.findOne({
           where: { id: existing.resourceId },
         });
+        if (res && !res.category && card.category) {
+          res.category = card.category;
+          await this.resourceRepo.save(res);
+        }
         if (res && !this.coverFileExists(res.localCoverPath) && card.coverUrl) {
           const localCover = await this.downloadCover(
-            card.comicId,
+            card.slug,
             card.coverUrl,
             'other',
           );
@@ -388,15 +406,15 @@ export class DongmanhiScraperService extends BaseComicScraper {
 
   protected async ensureSourceSite(): Promise<SourceSite> {
     let site = await this.sourceSiteRepo.findOne({
-      where: { domain: 'www.dongmanhi.com' },
+      where: { domain: 'www.60ti.com' },
     });
     if (!site) {
       site = this.sourceSiteRepo.create({
-        name: '动漫嗨',
-        domain: 'www.dongmanhi.com',
+        name: '漫画栈',
+        domain: 'www.60ti.com',
         resourceType: SiteResourceType.COMIC,
         ageRating: this.ageRating,
-        config: { baseUrl: this.baseUrl, listPath: '/list/0-0-0-0/' },
+        config: { baseUrl: this.baseUrl, listPath: '/category/' },
         rateLimit: this.rateLimitMs,
         status: 1,
       });
@@ -406,12 +424,12 @@ export class DongmanhiScraperService extends BaseComicScraper {
   }
 
   private async saveResource(
-    detail: ReturnType<DongmanhiParser['parseDetail']>,
+    detail: ReturnType<ManhuazhanParser['parseDetail']>,
   ): Promise<Resource> {
     let resource = await this.resourceRepo.findOne({
       where: { title: detail.title, type: ResourceType.COMIC },
     });
-    const extra = { rating: detail.rating, chapterCount: detail.chapterCount };
+    const extra = { rating: detail.rating, comicId: detail.comicId };
     if (!resource) {
       resource = this.resourceRepo.create({
         type: ResourceType.COMIC,
@@ -444,19 +462,19 @@ export class DongmanhiScraperService extends BaseComicScraper {
   private async saveResourceSource(
     site: SourceSite,
     resource: Resource,
-    comicId: string,
+    slug: string,
     detailUrl: string,
     status: string,
   ): Promise<void> {
     let rs = await this.resourceSourceRepo.findOne({
-      where: { sourceSiteId: site.id, sourceId: comicId },
+      where: { sourceSiteId: site.id, sourceId: slug },
     });
     if (!rs) {
       rs = this.resourceSourceRepo.create({
         resourceId: resource.id,
         sourceSiteId: site.id,
         sourceUrl: detailUrl,
-        sourceId: comicId,
+        sourceId: slug,
         rawTitle: resource.title,
       });
     }
@@ -470,7 +488,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
     resource: Resource,
     site: SourceSite,
     orderIndex: number,
-    ch: ReturnType<DongmanhiParser['parseChapterList']>[0],
+    ch: ReturnType<ManhuazhanParser['parseChapterList']>[0],
   ): Promise<Chapter | null> {
     let chapter = await this.chapterRepo.findOne({
       where: { resourceId: resource.id, sourceSiteId: site.id, orderIndex },
@@ -492,7 +510,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
 
   private async scrapeChapterImages(
     taskId: number,
-    comicId: string,
+    slug: string,
     chapter: Chapter,
     viewerUrl: string,
   ): Promise<number> {
@@ -525,7 +543,7 @@ export class DongmanhiScraperService extends BaseComicScraper {
       this.checkCancelled(taskId);
 
       const { filepath, webPath } = this.computeImagePath(
-        comicId,
+        slug,
         chapter.orderIndex,
         img.orderIndex,
         img.imageUrl,

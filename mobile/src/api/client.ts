@@ -36,6 +36,7 @@ export interface Resource {
   chapterCount: number;
   isComplete: number;
   category: string | null;
+  ageRating: string;
   extra: Record<string, any> | null;
   createdAt: string;
   updatedAt: string;
@@ -111,6 +112,7 @@ export const api = {
     category?: string;
     completion?: string;
     sourceSite?: string;
+    ageRating?: string;
     page?: number;
     pageSize?: number;
   }) => {
@@ -120,6 +122,7 @@ export const api = {
     if (params?.category) search.set('category', params.category);
     if (params?.completion) search.set('completion', params.completion);
     if (params?.sourceSite) search.set('sourceSite', params.sourceSite);
+    if (params?.ageRating) search.set('ageRating', params.ageRating);
     if (params?.page) search.set('page', String(params.page));
     if (params?.pageSize) search.set('pageSize', String(params.pageSize));
     const qs = search.toString();
@@ -131,8 +134,10 @@ export const api = {
   getChapterImages: (chapterId: number) =>
     request<ChapterData>(`/resources/chapters/${chapterId}/images`),
 
-  getCategories: () =>
-    request<{ name: string; count: number }[]>('/resources/categories/list'),
+  getCategories: (ageRating?: string) =>
+    request<{ name: string; count: number }[]>(
+      `/resources/categories/list${ageRating ? `?ageRating=${ageRating}` : ''}`,
+    ),
 
   exportPdf: (id: number, sourceSiteId?: number) =>
     request<{ pdfPath: string }>(`/resources/${id}/export-pdf`, {

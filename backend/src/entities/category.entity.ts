@@ -23,7 +23,9 @@ export class Category {
   @Column({ name: 'parent_id', nullable: true })
   parentId: number;
 
-  @ManyToOne(() => Category, (category) => category.children, { onDelete: 'SET NULL' })
+  @ManyToOne(() => Category, (category) => category.children, {
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'parent_id' })
   parent: Category;
 

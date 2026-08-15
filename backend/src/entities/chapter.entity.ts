@@ -33,7 +33,12 @@ export class Chapter {
   @Column({ length: 255 })
   title: string;
 
-  @Column({ name: 'chapter_type', type: 'enum', enum: ChapterType, default: ChapterType.TEXT })
+  @Column({
+    name: 'chapter_type',
+    type: 'enum',
+    enum: ChapterType,
+    default: ChapterType.TEXT,
+  })
   chapterType: ChapterType;
 
   @Column({ name: 'source_url', length: 500, nullable: true })
@@ -66,11 +71,15 @@ export class Chapter {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Resource, (resource) => resource.chapters, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Resource, (resource) => resource.chapters, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'resource_id' })
   resource: Resource;
 
-  @ManyToOne(() => Volume, (volume) => volume.chapters, { onDelete: 'SET NULL' })
+  @ManyToOne(() => Volume, (volume) => volume.chapters, {
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'volume_id' })
   volume: Volume;
 

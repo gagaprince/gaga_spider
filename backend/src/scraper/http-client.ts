@@ -27,7 +27,10 @@ export class HttpClient {
     this.pythonBin = process.env.PYTHON_BIN || 'python3';
   }
 
-  async fetch(url: string, headers?: Record<string, string>): Promise<FetchResult> {
+  async fetch(
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<FetchResult> {
     const args = [this.scriptPath, 'fetch', url];
     if (headers) {
       args.push(JSON.stringify(headers));

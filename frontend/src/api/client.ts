@@ -25,6 +25,7 @@ export interface Resource {
   chapterCount: number;
   isComplete: number;
   category: string | null;
+  ageRating: string;
   extra: Record<string, any> | null;
   createdAt: string;
   updatedAt: string;
@@ -73,10 +74,11 @@ export const api = {
     type?: string;
     keyword?: string;
     scrapeStatus?: string;
-    category?: string;
-    completion?: string;
-    sourceSite?: string;
-    page?: number;
+  category?: string;
+  completion?: string;
+  sourceSite?: string;
+  ageRating?: string;
+  page?: number;
     pageSize?: number;
   }) => {
     const search = new URLSearchParams();
@@ -86,6 +88,7 @@ export const api = {
     if (params?.category) search.set('category', params.category);
     if (params?.completion) search.set('completion', params.completion);
     if (params?.sourceSite) search.set('sourceSite', params.sourceSite);
+    if (params?.ageRating) search.set('ageRating', params.ageRating);
     if (params?.page) search.set('page', String(params.page));
     if (params?.pageSize) search.set('pageSize', String(params.pageSize));
     const qs = search.toString();
@@ -147,7 +150,15 @@ export const api = {
       nextChapter: { id: number; orderIndex: number; title: string } | null;
     }>(`/resources/chapters/${chapterId}/images`),
 
- getCategories: () => request<{ name: string; count: number }[]>('/resources/categories/list'),
+  getCategories: (ageRating?: string) =>
+    request<{ name: string; count: number }[]>(
+      `/resources/categories/list${ageRating ? `?ageRating=${ageRating}` : ''}`,
+    ),
+
+  getSourceSites: (ageRating?: string) =>
+    request<{ id: number; name: string; domain: string }[]>(
+      `/resources/source-sites/list${ageRating ? `?ageRating=${ageRating}` : ''}`,
+    ),
 
   scrapeWebtoons: (titleNo: number, maxChapters?: number) =>
     request<ScrapeResult>('/scraper/webtoons/scrape', {
@@ -179,6 +190,12 @@ export const api = {
   discoverDongmanhi: () =>
     request<{ success: boolean; data: { discovered: number; new: number } }>(
       '/scraper/dongmanhi/discover',
+      { method: 'POST' },
+    ),
+
+  discoverManhuazhan: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/manhuazhan/discover',
       { method: 'POST' },
     ),
 

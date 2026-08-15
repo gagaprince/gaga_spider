@@ -51,7 +51,9 @@ export class ResourceSource {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @ManyToOne(() => Resource, (resource) => resource.sources, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Resource, (resource) => resource.sources, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'resource_id' })
   resource: Resource;
 

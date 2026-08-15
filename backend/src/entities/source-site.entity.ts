@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { AgeRating } from '../constants/age-rating';
 
 export enum SiteResourceType {
   NOVEL = 'novel',
@@ -34,6 +35,14 @@ export class SourceSite {
 
   @Column({ default: 1 })
   status: number;
+
+  @Column({
+    name: 'age_rating',
+    type: 'enum',
+    enum: AgeRating,
+    default: AgeRating.ALL,
+  })
+  ageRating: AgeRating;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

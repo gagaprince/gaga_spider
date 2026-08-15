@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, assetUrl, type Resource } from '../api/client';
+import { useAgeRating } from "../hooks/useAgeRating";
 
 interface CategoryInfo {
   name: string;
@@ -21,24 +22,25 @@ export function SearchPage() {
   const [category, setCategory] = useState('');
   const [completion, setCompletion] = useState('');
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  const [ageRating] = useAgeRating();
   const reqId = useRef(0);
 
   const fetchCategories = useCallback(async () => {
     try {
-      const cats = await api.getCategories();
+      const cats = await api.getCategories(ageRating);
       setCategories(cats);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [ageRating]);
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
   const fetchFirst = useCallback(
-    async (kw: string, cat: string, comp: string) => {
+    async (kw: string, cat: string, comp: string, ar: string) => {
       setLoading(true);
       setError('');
       const id = ++reqId.current;
@@ -47,6 +49,7 @@ export function SearchPage() {
           keyword: kw || undefined,
           category: cat || undefined,
           completion: comp || undefined,
+          ageRating: ar,
           scrapeStatus: 'scraped',
           page: 1,
           pageSize: PAGE_SIZE,
@@ -65,8 +68,8 @@ export function SearchPage() {
   );
 
   useEffect(() => {
-    fetchFirst(committedKeyword, category, completion);
-  }, [fetchFirst, committedKeyword, category, completion]);
+    fetchFirst(committedKeyword, category, completion, ageRating);
+  }, [fetchFirst, committedKeyword, category, completion, ageRating]);
 
   const loadMore = async () => {
     if (loadingMore || items.length >= total) return;
@@ -77,6 +80,7 @@ export function SearchPage() {
         keyword: committedKeyword || undefined,
         category: category || undefined,
         completion: completion || undefined,
+        ageRating,
         scrapeStatus: 'scraped',
         page: next,
         pageSize: PAGE_SIZE,

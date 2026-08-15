@@ -161,7 +161,9 @@ export function ResourceDetail() {
     ? pdfPaths[activeSource.sourceSiteId]
     : null;
   const activeChapterPdfs = activeSource
-    ? chapterPdfsBySource[activeSource.sourceSiteId] ?? chapterPdfs
+    ? chapterPdfsBySource[activeSource.sourceSiteId]?.length
+      ? chapterPdfsBySource[activeSource.sourceSiteId]
+      : chapterPdfs
     : chapterPdfs;
 
   return (
@@ -372,9 +374,7 @@ export function ResourceDetail() {
                 setExporting(true);
                 setExportError('');
                 try {
-                  const sid = hasMultipleSources
-                    ? activeSource?.sourceSiteId
-                    : undefined;
+                  const sid = activeSource?.sourceSiteId;
                   const result = await api.exportPdf(Number(resourceId), sid);
                   if (sid != null) {
                     setPdfPaths((prev) => ({
@@ -425,9 +425,7 @@ export function ResourceDetail() {
                 setExportingChapters(true);
                 setChapterExportError('');
                 try {
-                  const sid = hasMultipleSources
-                    ? activeSource?.sourceSiteId
-                    : undefined;
+                  const sid = activeSource?.sourceSiteId;
                   const r = await api.exportChapterPdfs(
                     Number(resourceId),
                     sid,
@@ -492,7 +490,7 @@ export function ResourceDetail() {
                 <a
                   href={api.chapterPdfsZipUrl(
                     Number(resourceId),
-                    hasMultipleSources ? activeSource?.sourceSiteId : undefined,
+                    activeSource?.sourceSiteId,
                   )}
                   download
                   style={{

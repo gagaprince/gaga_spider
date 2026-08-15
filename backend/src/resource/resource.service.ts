@@ -32,6 +32,8 @@ export class ResourceService {
     private readonly authorRepo: Repository<Author>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(SourceSite)
+    private readonly sourceSiteRepo: Repository<SourceSite>,
     private readonly settingsService: SettingsService,
   ) {}
 
@@ -42,6 +44,7 @@ export class ResourceService {
     category?: string;
     completion?: string;
     sourceSite?: string;
+    ageRating?: string;
     page?: number;
     pageSize?: number;
   }) {
@@ -52,6 +55,7 @@ export class ResourceService {
       category,
       completion,
       sourceSite,
+      ageRating = 'all',
       page = 1,
       pageSize = 20,
     } = query;
@@ -60,6 +64,7 @@ export class ResourceService {
     if (type) {
       qb.andWhere('r.type = :type', { type });
     }
+    qb.andWhere('r.age_rating = :ageRating', { ageRating });
     if (keyword) {
       qb.andWhere('r.title LIKE :keyword', { keyword: `%${keyword}%` });
     }
@@ -184,18 +189,31 @@ export class ResourceService {
     };
   }
 
-  async listCategories() {
+  async listCategories(ageRating: string = 'all') {
     const result = await this.resourceRepo
       .createQueryBuilder('r')
       .select('r.category', 'category')
       .addSelect('COUNT(*)', 'count')
       .where('r.category IS NOT NULL')
+      .andWhere('r.age_rating = :ageRating', { ageRating })
       .groupBy('r.category')
       .orderBy('count', 'DESC')
       .getRawMany();
     return result.map((r: any) => ({
       name: r.category,
       count: Number(r.count),
+    }));
+  }
+
+  async listSourceSites(ageRating: string = 'all') {
+    const sites = await this.sourceSiteRepo.find({
+      where: { ageRating: ageRating as any, status: 1 },
+      order: { id: 'ASC' },
+    });
+    return sites.map((s) => ({
+      id: s.id,
+      name: s.name,
+      domain: s.domain,
     }));
   }
 
@@ -276,9 +294,7 @@ export class ResourceService {
         where: { chapterId: chapter.id, status: 'downloaded' },
         order: { orderIndex: 'ASC' },
       });
-      const localPaths = images
-        .map((img) => img.localPath)
-        .filter(Boolean) as string[];
+      const localPaths = images.map((img) => img.localPath).filter(Boolean);
       if (localPaths.length > 0) {
         chapterImages.push({ chapterTitle: chapter.title, localPaths });
       }
@@ -535,9 +551,7 @@ export class ResourceService {
           where: { chapterId: chapter.id, status: 'downloaded' },
           order: { orderIndex: 'ASC' },
         });
-        const localPaths = images
-          .map((img) => img.localPath)
-          .filter(Boolean) as string[];
+        const localPaths = images.map((img) => img.localPath).filter(Boolean);
         if (localPaths.length === 0) continue;
 
         const paths = skipFirstImage ? localPaths.slice(1) : localPaths;

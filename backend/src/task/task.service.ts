@@ -17,11 +17,7 @@ export class TaskService {
     private readonly logRepo: Repository<ScrapeLog>,
   ) {}
 
-  async findAll(query: {
-    status?: string;
-    page?: number;
-    pageSize?: number;
-  }) {
+  async findAll(query: { status?: string; page?: number; pageSize?: number }) {
     const { status, page = 1, pageSize = 20 } = query;
 
     const findOptions: any = {
@@ -72,7 +68,11 @@ export class TaskService {
     this.runningAbortControllers.set(id, false);
   }
 
-  async markSuccess(id: number, totalItems: number, doneItems: number): Promise<void> {
+  async markSuccess(
+    id: number,
+    totalItems: number,
+    doneItems: number,
+  ): Promise<void> {
     await this.taskRepo.update(id, {
       status: TaskStatus.SUCCESS,
       totalItems,
@@ -106,13 +106,17 @@ export class TaskService {
   ): Promise<number[]> {
     const qb = this.taskRepo
       .createQueryBuilder('t')
-      .where('t.status IN (:...statuses)', { statuses: [TaskStatus.RUNNING, TaskStatus.PENDING] });
+      .where('t.status IN (:...statuses)', {
+        statuses: [TaskStatus.RUNNING, TaskStatus.PENDING],
+      });
 
     if (resourceId) {
       qb.andWhere('t.resource_id = :resourceId', { resourceId });
     }
     if (titleNo) {
-      qb.andWhere("JSON_EXTRACT(t.config, '$.titleNo') = :titleNo", { titleNo });
+      qb.andWhere("JSON_EXTRACT(t.config, '$.titleNo') = :titleNo", {
+        titleNo,
+      });
     }
     if (sourceSiteId) {
       qb.andWhere('t.source_site_id = :sourceSiteId', { sourceSiteId });
@@ -121,7 +125,9 @@ export class TaskService {
     const tasks = await qb.getMany();
     const stoppedIds: number[] = [];
     for (const task of tasks) {
-      this.logger.log(`停止运行中任务 #${task.id} (resourceId=${task.resourceId})`);
+      this.logger.log(
+        `停止运行中任务 #${task.id} (resourceId=${task.resourceId})`,
+      );
       await this.markCancelled(task.id);
       await this.log(task.id, 'info', '因重新发起抓取而被停止');
       stoppedIds.push(task.id);
@@ -154,7 +160,12 @@ export class TaskService {
     await this.taskRepo.delete(id);
   }
 
-  async log(taskId: number, level: string, message: string, context?: Record<string, any>): Promise<void> {
+  async log(
+    taskId: number,
+    level: string,
+    message: string,
+    context?: Record<string, any>,
+  ): Promise<void> {
     await this.logRepo.save({
       taskId,
       level: level as any,

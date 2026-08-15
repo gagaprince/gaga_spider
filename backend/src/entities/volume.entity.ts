@@ -23,7 +23,9 @@ export class Volume {
   @Column({ length: 255, nullable: true })
   title: string;
 
-  @ManyToOne(() => Resource, (resource) => resource.volumes, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Resource, (resource) => resource.volumes, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'resource_id' })
   resource: Resource;
 

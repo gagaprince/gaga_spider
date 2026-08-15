@@ -11,6 +11,7 @@ import { ResourceAuthor } from '../entities/resource-author.entity';
 import { Category } from '../entities/category.entity';
 import { ResourceCategory } from '../entities/resource-category.entity';
 import { ResourceType } from '../constants/resource-type';
+import { AgeRating } from '../constants/age-rating';
 import { TaskService } from '../task/task.service';
 import { SettingsService } from '../settings/settings.service';
 import { existsSync, mkdirSync } from 'fs';
@@ -27,6 +28,9 @@ export abstract class BaseComicScraper {
 
   protected abstract get baseUrl(): string;
   protected abstract get rateLimitMs(): number;
+  protected get ageRating(): AgeRating {
+    return AgeRating.ALL;
+  }
   protected get referer(): string {
     return this.baseUrl;
   }

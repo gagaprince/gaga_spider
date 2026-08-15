@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ResourceType } from '../constants/resource-type';
+import { AgeRating } from '../constants/age-rating';
 import { ResourceSource } from './resource-source.entity';
 import { Volume } from './volume.entity';
 import { Chapter } from './chapter.entity';
@@ -28,7 +29,12 @@ export class Resource {
   @Column({ name: 'cover_url', length: 500, nullable: true })
   coverUrl: string;
 
-  @Column({ type: "varchar", name: "local_cover_path", length: 500, nullable: true })
+  @Column({
+    type: 'varchar',
+    name: 'local_cover_path',
+    length: 500,
+    nullable: true,
+  })
   localCoverPath: string | null;
 
   @Column({ default: 'unknown' })
@@ -52,10 +58,18 @@ export class Resource {
   @Column({ name: 'is_complete', default: 0 })
   isComplete: number;
 
-  @Column({ type: "varchar", length: 50, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
   category: string | null;
 
-  @Column({ type: "varchar", name: "pdf_path", length: 500, nullable: true })
+  @Column({
+    name: 'age_rating',
+    type: 'enum',
+    enum: AgeRating,
+    default: AgeRating.ALL,
+  })
+  ageRating: AgeRating;
+
+  @Column({ type: 'varchar', name: 'pdf_path', length: 500, nullable: true })
   pdfPath: string | null;
 
   @Column({ type: 'json', nullable: true })
