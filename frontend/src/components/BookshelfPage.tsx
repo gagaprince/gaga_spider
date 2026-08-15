@@ -156,7 +156,9 @@ export function BookshelfPage() {
         ? await api.discoverWebtoons()
         : discoverDomain === 'www.dongmanhi.com'
           ? await api.discoverDongmanhi()
-          : await api.discoverManhuazhan();
+          : discoverDomain === 'nnhm7.com'
+            ? await api.discoverNniaooman()
+            : await api.discoverManhuazhan();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       goToPage(1, true);
       fetchResources();

@@ -199,6 +199,12 @@ export const api = {
       { method: 'POST' },
     ),
 
+  discoverNniaooman: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/nniaooman/discover',
+      { method: 'POST' },
+    ),
+
   getTasks: (params?: { status?: string; page?: number; pageSize?: number }) => {
     const search = new URLSearchParams();
     if (params?.status) search.set('status', params.status);

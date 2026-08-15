@@ -8,7 +8,8 @@
 ALTER TABLE resources
   ADD COLUMN age_rating ENUM('all','adult') NOT NULL DEFAULT 'all'
   COMMENT '内容分级: all=全年龄段, adult=成人限定'
-  AFTER category;
+  AFTER category,
+  ADD INDEX idx_age_rating (age_rating);
 
 ALTER TABLE source_sites
   ADD COLUMN age_rating ENUM('all','adult') NOT NULL DEFAULT 'all'

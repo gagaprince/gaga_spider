@@ -49,7 +49,8 @@ CREATE TABLE resources (
   updated_at       DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_type_status (type, status),
   INDEX idx_title (title),
-  INDEX idx_category (category)
+  INDEX idx_category (category),
+  INDEX idx_age_rating (age_rating)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='资源主表';
 
 -- ============================================================

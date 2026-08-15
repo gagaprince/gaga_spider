@@ -404,7 +404,7 @@ export class ManhuazhanScraperService extends BaseComicScraper {
     }
   }
 
-  protected async ensureSourceSite(): Promise<SourceSite> {
+  public async ensureSourceSite(): Promise<SourceSite> {
     let site = await this.sourceSiteRepo.findOne({
       where: { domain: 'www.60ti.com' },
     });

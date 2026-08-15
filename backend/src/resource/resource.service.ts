@@ -306,8 +306,13 @@ export class ResourceService {
       (await this.resolveSourceDomain(resourceId, sourceSiteId)) ===
       'www.webtoons.com';
 
-    // 输出路径: resourceFiles/pdfs/{resourceId}.pdf
-    const pdfDir = path.join(this.settingsService.resourcePath, 'pdfs');
+    // 输出路径: resourceFiles/[18/]pdfs/{title}.pdf
+    const subDir = resource.ageRating === 'adult' ? '18' : '';
+    const pdfDir = path.join(
+      this.settingsService.resourcePath,
+      ...(subDir ? [subDir] : []),
+      'pdfs',
+    );
     if (!fs.existsSync(pdfDir)) {
       fs.mkdirSync(pdfDir, { recursive: true });
     }
@@ -318,7 +323,9 @@ export class ResourceService {
     const suffix = sourceSiteId ? `_${sourceSiteId}` : '';
     const filename = `${safeTitle}${suffix}.pdf`;
     const filepath = path.join(pdfDir, filename);
-    const webPath = `/resourceFiles/pdfs/${encodeURIComponent(filename)}`;
+    const webPath = subDir
+      ? `/resourceFiles/${subDir}/pdfs/${encodeURIComponent(filename)}`
+      : `/resourceFiles/pdfs/${encodeURIComponent(filename)}`;
 
     const doc = new PDFDocument({ autoFirstPage: false });
     const stream = fs.createWriteStream(filepath);
@@ -514,11 +521,16 @@ export class ResourceService {
       'www.webtoons.com';
 
     const dirName = this.chapterPdfDirName(resourceId, sourceSiteId);
-    const chapterDir = path.join(
+    const subDir = resource.ageRating === 'adult' ? '18' : '';
+    const pdfsFsBase = path.join(
       this.settingsService.resourcePath,
+      ...(subDir ? [subDir] : []),
       'pdfs',
-      dirName,
     );
+    const pdfsWebBase = subDir
+      ? `/resourceFiles/${subDir}/pdfs`
+      : '/resourceFiles/pdfs';
+    const chapterDir = path.join(pdfsFsBase, dirName);
     // 每次重新生成都清空旧目录,避免残留过期章节文件
     if (fs.existsSync(chapterDir)) {
       fs.rmSync(chapterDir, { recursive: true, force: true });
@@ -527,8 +539,7 @@ export class ResourceService {
 
     // 旧的整体 zip 缓存一并清除,打包下载时按需重新生成
     const zipAbs = path.join(
-      this.settingsService.resourcePath,
-      'pdfs',
+      pdfsFsBase,
       `${dirName}.zip`,
     );
     if (fs.existsSync(zipAbs)) {
@@ -560,7 +571,7 @@ export class ResourceService {
           `chapter_${chapter.orderIndex}`;
         const filename = `${String(chapter.orderIndex).padStart(4, '0')}_${safeChapterTitle}.pdf`;
         const filepath = path.join(chapterDir, filename);
-        const webPath = `/resourceFiles/pdfs/${dirName}/${encodeURIComponent(filename)}`;
+        const webPath = `${pdfsWebBase}/${dirName}/${encodeURIComponent(filename)}`;
 
         const doc = new PDFDocument({ autoFirstPage: false });
         const stream = fs.createWriteStream(filepath);
@@ -610,10 +621,21 @@ export class ResourceService {
   ): Promise<{
     chapters: { orderIndex: number; title: string; pdfPath: string }[];
   }> {
+    const resource = await this.resourceRepo.findOne({
+      where: { id: resourceId },
+    });
     const dirName = this.chapterPdfDirName(resourceId, sourceSiteId);
-    const chapterDir = path.join(
+    const subDir = resource?.ageRating === 'adult' ? '18' : '';
+    const pdfsFsBase = path.join(
       this.settingsService.resourcePath,
+      ...(subDir ? [subDir] : []),
       'pdfs',
+    );
+    const pdfsWebBase = subDir
+      ? `/resourceFiles/${subDir}/pdfs`
+      : '/resourceFiles/pdfs';
+    const chapterDir = path.join(
+      pdfsFsBase,
       dirName,
     );
     if (!fs.existsSync(chapterDir)) return { chapters: [] };
@@ -630,7 +652,7 @@ export class ResourceService {
       return {
         orderIndex,
         title,
-        pdfPath: `/resourceFiles/pdfs/${dirName}/${encodeURIComponent(f)}`,
+        pdfPath: `${pdfsWebBase}/${dirName}/${encodeURIComponent(f)}`,
       };
     });
     return { chapters };
@@ -650,11 +672,13 @@ export class ResourceService {
     if (!resource) throw new Error('资源不存在');
 
     const dirName = this.chapterPdfDirName(resourceId, sourceSiteId);
-    const chapterDir = path.join(
+    const subDir = resource.ageRating === 'adult' ? '18' : '';
+    const pdfsFsBase = path.join(
       this.settingsService.resourcePath,
+      ...(subDir ? [subDir] : []),
       'pdfs',
-      dirName,
     );
+    const chapterDir = path.join(pdfsFsBase, dirName);
     if (!fs.existsSync(chapterDir)) {
       throw new Error('请先按章节导出 PDF');
     }
@@ -668,8 +692,7 @@ export class ResourceService {
     }
 
     const zipAbs = path.join(
-      this.settingsService.resourcePath,
-      'pdfs',
+      pdfsFsBase,
       `${dirName}.zip`,
     );
     if (fs.existsSync(zipAbs)) {

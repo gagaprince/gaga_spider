@@ -487,7 +487,7 @@ export class WebtoonsScraperService extends BaseComicScraper {
     return map[slug] || slug;
   }
 
-  protected async ensureSourceSite(): Promise<SourceSite> {
+  public async ensureSourceSite(): Promise<SourceSite> {
     let site = await this.sourceSiteRepo.findOne({
       where: { domain: 'www.webtoons.com' },
     });

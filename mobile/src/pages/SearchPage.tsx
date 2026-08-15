@@ -23,7 +23,7 @@ export function SearchPage() {
   const [completion, setCompletion] = useState('');
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [error, setError] = useState("");
-  const [ageRating] = useAgeRating();
+  const [ageRating, setAgeRating] = useAgeRating();
   const reqId = useRef(0);
 
   const fetchCategories = useCallback(async () => {
@@ -105,17 +105,44 @@ export function SearchPage() {
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          background: '#6c5ce7',
+          background: ageRating === 'adult' ? '#c0392b' : '#6c5ce7',
           padding: '10px 12px',
           paddingTop: 'calc(10px + env(safe-area-inset-top))',
+          transition: 'background 0.2s',
         }}
       >
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 20 }}>📚</span>
+          <button
+            onClick={() => {
+              setAgeRating(ageRating === 'adult' ? 'all' : 'adult');
+              setCategory('');
+              setCompletion('');
+              setPage(1);
+            }}
+            title={ageRating === 'adult' ? '当前: 成人限定，点击切换到全年龄' : '当前: 全年龄，点击切换到成人限定'}
+            style={{
+              border: 'none',
+              background: ageRating === 'adult' ? 'rgba(231,76,60,0.9)' : 'rgba(255,255,255,0.2)',
+              color: '#fff',
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              fontSize: 18,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            {ageRating === 'adult' ? '🔞' : '📚'}
+          </button>
           <form
             style={{ flex: 1 }}
             onSubmit={(e) => {
               e.preventDefault();
+              setPage(1);
               setCommittedKeyword(keyword.trim());
             }}
           >

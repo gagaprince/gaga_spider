@@ -9,6 +9,7 @@ import {
 import { WebtoonsScraperService } from './webtoons/webtoons-scraper.service';
 import { DongmanhiScraperService } from './dongmanhi/dongmanhi-scraper.service';
 import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.service';
+import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -20,6 +21,7 @@ export class ScraperController {
     private readonly webtoonsScraper: WebtoonsScraperService,
     private readonly dongmanhiScraper: DongmanhiScraperService,
     private readonly manhuazhanScraper: ManhuazhanScraperService,
+    private readonly nniaoomanScraper: NniaoomanScraperService,
     @InjectRepository(ResourceSource)
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(SourceSite)
@@ -115,6 +117,13 @@ export class ScraperController {
     return { success: true, data: result };
   }
 
+  // ===== 鸟鸟韩漫 (nnhm7) =====
+  @Post('nniaooman/discover')
+  async discoverNniaooman() {
+    const result = await this.nniaoomanScraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   // ===== 路由解析 =====
   private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
@@ -122,6 +131,9 @@ export class ScraperController {
     }
     if (domain === 'www.60ti.com') {
       return this.manhuazhanScraper;
+    }
+    if (domain === 'nnhm7.com') {
+      return this.nniaoomanScraper;
     }
     return this.webtoonsScraper;
   }

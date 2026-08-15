@@ -28,8 +28,23 @@ export abstract class BaseComicScraper {
 
   protected abstract get baseUrl(): string;
   protected abstract get rateLimitMs(): number;
+
+  /**
+   * 确保源站记录存在于 source_sites 表中(不存在则创建)。
+   * 后端启动时由 ScraperInitializer 调用,让所有已注册 scraper
+   * 声明的源站在首次抓取前就出现在前端筛选项中。
+   */
+  abstract ensureSourceSite(): Promise<SourceSite>;
+
   protected get ageRating(): AgeRating {
     return AgeRating.ALL;
+  }
+  /**
+   * 资源文件存储的子目录（相对于 resourcePath）。
+   * 全年龄段站点返回空字符串，成人站点返回 '18'，实现物理隔离。
+   */
+  protected get resourceSubDir(): string {
+    return this.ageRating === AgeRating.ADULT ? '18' : '';
   }
   protected get referer(): string {
     return this.baseUrl;
@@ -136,17 +151,19 @@ export abstract class BaseComicScraper {
     if (!coverUrl) return null;
 
     const ext = extname(new URL(coverUrl).pathname).split('?')[0] || '.jpg';
-    const dir = join(
-      this.settingsService.resourcePath,
-      'covers',
-      genre || 'other',
-    );
+    const parts = [this.settingsService.resourcePath];
+    if (this.resourceSubDir) parts.push(this.resourceSubDir);
+    parts.push('covers', genre || 'other');
+    const dir = join(...parts);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
     const filename = `${sourceId}${ext}`;
     const filepath = join(dir, filename);
-    const webPath = `/resourceFiles/covers/${genre || 'other'}/${filename}`;
+    const webPrefix = this.resourceSubDir
+      ? `/resourceFiles/${this.resourceSubDir}/covers/${genre || 'other'}`
+      : `/resourceFiles/covers/${genre || 'other'}`;
+    const webPath = `${webPrefix}/${filename}`;
 
     if (existsSync(filepath)) {
       return webPath;
@@ -204,14 +221,15 @@ export abstract class BaseComicScraper {
   ): { filepath: string; webPath: string } {
     const ext = extname(new URL(imageUrl).pathname).split('?')[0] || '.jpg';
     const filename = `${String(orderIndex).padStart(4, '0')}${ext}`;
-    const dir = join(
-      this.settingsService.resourcePath,
-      'images',
-      sourceId,
-      String(chapterOrderIndex),
-    );
+    const parts = [this.settingsService.resourcePath];
+    if (this.resourceSubDir) parts.push(this.resourceSubDir);
+    parts.push('images', sourceId, String(chapterOrderIndex));
+    const dir = join(...parts);
     const filepath = join(dir, filename);
-    const webPath = `/resourceFiles/images/${sourceId}/${chapterOrderIndex}/${filename}`;
+    const webPrefix = this.resourceSubDir
+      ? `/resourceFiles/${this.resourceSubDir}/images/${sourceId}/${chapterOrderIndex}`
+      : `/resourceFiles/images/${sourceId}/${chapterOrderIndex}`;
+    const webPath = `${webPrefix}/${filename}`;
     return { filepath, webPath };
   }
 
