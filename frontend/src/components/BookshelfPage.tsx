@@ -417,9 +417,18 @@ function ResourceCard({
           <span style={{ position: 'absolute', top: 8, left: 8, background: isScraped ? '#27ae60' : '#e67e22', color: '#fff', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
             {isScraped ? '✓ 已抓取' : '未抓取'}
           </span>
-          {r.category && (
-            <span style={{ position: 'absolute', bottom: 8, left: 8, background: 'rgba(108,92,231,0.85)', color: '#fff', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
-              {r.category}
+          {(r.categories?.length || r.category) && (
+            <span style={{ position: 'absolute', bottom: 8, left: 8, display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 'calc(100% - 16px)' }}>
+              {(r.categories && r.categories.length > 0 ? r.categories : (r.category ? [r.category] : [])).slice(0, 2).map((c) => (
+                <span key={c} style={{ background: 'rgba(108,92,231,0.85)', color: '#fff', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
+                  {c}
+                </span>
+              ))}
+              {(r.categories?.length ?? 0) > 2 && (
+                <span style={{ background: 'rgba(0,0,0,0.55)', color: '#fff', padding: '2px 6px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
+                  +{(r.categories!.length - 2)}
+                </span>
+              )}
             </span>
           )}
         </div>

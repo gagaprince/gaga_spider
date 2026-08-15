@@ -13,6 +13,7 @@ import { Chapter } from '../entities/chapter.entity';
 import { ChapterImage } from '../entities/chapter-image.entity';
 import { Author } from '../entities/author.entity';
 import { Category } from '../entities/category.entity';
+import { ResourceCategory } from '../entities/resource-category.entity';
 import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
@@ -32,6 +33,8 @@ export class ResourceService {
     private readonly authorRepo: Repository<Author>,
     @InjectRepository(Category)
     private readonly categoryRepo: Repository<Category>,
+    @InjectRepository(ResourceCategory)
+    private readonly resourceCategoryRepo: Repository<ResourceCategory>,
     @InjectRepository(SourceSite)
     private readonly sourceSiteRepo: Repository<SourceSite>,
     private readonly settingsService: SettingsService,
@@ -69,7 +72,18 @@ export class ResourceService {
       qb.andWhere('r.title LIKE :keyword', { keyword: `%${keyword}%` });
     }
     if (category) {
-      qb.andWhere('r.category = :category', { category });
+      qb.andWhere((subQb) => {
+        const subQuery = subQb
+          .subQuery()
+          .select('1')
+          .from(ResourceCategory, 'rc')
+          .innerJoin(Category, 'c', 'c.id = rc.category_id AND c.name = :catName', {
+            catName: category,
+          })
+          .where('rc.resource_id = r.id')
+          .getQuery();
+        return `EXISTS ${subQuery}`;
+      });
     }
     if (completion === 'completed') {
       qb.andWhere('r.status = :status', { status: 'completed' });
@@ -123,12 +137,35 @@ export class ResourceService {
 
     const [items, total] = await qb.getManyAndCount();
 
+    const itemIds = items.map((i) => i.id);
+    const categoryRows = itemIds.length
+      ? await this.resourceCategoryRepo
+          .createQueryBuilder('rc')
+          .innerJoin(Category, 'c', 'c.id = rc.category_id')
+          .select(['rc.resource_id AS resourceId', 'c.name AS name'])
+          .where('rc.resource_id IN (:...itemIds)', { itemIds })
+          .orderBy('c.name', 'ASC')
+          .getRawMany()
+      : [];
+    const categoriesByResource = new Map<number, string[]>();
+    for (const row of categoryRows as any[]) {
+      const list = categoriesByResource.get(row.resourceId) ?? [];
+      list.push(row.name);
+      categoriesByResource.set(row.resourceId, list);
+    }
+
     const itemsWithChapters = await Promise.all(
       items.map(async (item) => {
         const chapterCount = await this.chapterRepo.count({
           where: { resourceId: item.id },
         });
-        return { ...item, chapterCount };
+        const categories = categoriesByResource.get(item.id) ?? [];
+        return {
+          ...item,
+          chapterCount,
+          categories,
+          category: item.category || categories[0] || null,
+        };
       }),
     );
 
@@ -190,17 +227,18 @@ export class ResourceService {
   }
 
   async listCategories(ageRating: string = 'all') {
-    const result = await this.resourceRepo
-      .createQueryBuilder('r')
-      .select('r.category', 'category')
-      .addSelect('COUNT(*)', 'count')
-      .where('r.category IS NOT NULL')
-      .andWhere('r.age_rating = :ageRating', { ageRating })
-      .groupBy('r.category')
+    const result = await this.resourceCategoryRepo
+      .createQueryBuilder('rc')
+      .innerJoin(Resource, 'r', 'r.id = rc.resource_id')
+      .innerJoin(Category, 'c', 'c.id = rc.category_id')
+      .select('c.name', 'name')
+      .addSelect('COUNT(DISTINCT r.id)', 'count')
+      .where('r.age_rating = :ageRating', { ageRating })
+      .groupBy('c.id')
       .orderBy('count', 'DESC')
       .getRawMany();
     return result.map((r: any) => ({
-      name: r.category,
+      name: r.name,
       count: Number(r.count),
     }));
   }

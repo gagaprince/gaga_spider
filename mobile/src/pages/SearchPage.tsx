@@ -293,6 +293,16 @@ function Card({ r, onClick }: { r: Resource; onClick: () => void }) {
         {isScraped && (
           <span style={badge('#27ae60', { top: 6, left: 6 })}>✓</span>
         )}
+        {(r.categories?.length || r.category) && (
+          <span style={badge('rgba(108,92,231,0.9)', { bottom: 6, left: 6 })}>
+            {(r.categories && r.categories.length > 0
+              ? r.categories
+              : r.category
+                ? [r.category]
+                : []
+            ).slice(0, 2).join(' / ')}
+          </span>
+        )}
       </div>
       <div style={{ padding: '8px 10px' }}>
         <h3

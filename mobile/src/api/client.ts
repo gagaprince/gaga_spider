@@ -37,6 +37,7 @@ export interface Resource {
   isComplete: number;
   category: string | null;
   ageRating: string;
+  categories?: string[];
   extra: Record<string, any> | null;
   createdAt: string;
   updatedAt: string;
