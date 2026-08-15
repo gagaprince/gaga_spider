@@ -158,7 +158,9 @@ export function BookshelfPage() {
           ? await api.discoverDongmanhi()
           : discoverDomain === 'nnhm7.com'
             ? await api.discoverNniaooman()
-            : await api.discoverManhuazhan();
+            : discoverDomain === 'manhwa18.cc'
+              ? await api.discoverManhwa18()
+              : await api.discoverManhuazhan();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       goToPage(1, true);
       fetchResources();

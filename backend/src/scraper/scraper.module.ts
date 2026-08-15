@@ -4,6 +4,7 @@ import { WebtoonsScraperService } from './webtoons/webtoons-scraper.service';
 import { DongmanhiScraperService } from './dongmanhi/dongmanhi-scraper.service';
 import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.service';
 import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
+import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
 import { ScraperInitializer } from './scraper-initializer.service';
 import { ScraperController } from './scraper.controller';
 import { SourceSite } from '../entities/source-site.entity';
@@ -40,6 +41,7 @@ import { SettingsModule } from '../settings/settings.module';
     DongmanhiScraperService,
     ManhuazhanScraperService,
     NniaoomanScraperService,
+    Manhwa18ScraperService,
     ScraperInitializer,
   ],
   exports: [
@@ -47,6 +49,7 @@ import { SettingsModule } from '../settings/settings.module';
     DongmanhiScraperService,
     ManhuazhanScraperService,
     NniaoomanScraperService,
+    Manhwa18ScraperService,
   ],
 })
 export class ScraperModule {}

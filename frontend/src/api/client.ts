@@ -206,6 +206,12 @@ export const api = {
       { method: 'POST' },
     ),
 
+  discoverManhwa18: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/manhwa18/discover',
+      { method: 'POST' },
+    ),
+
   getTasks: (params?: { status?: string; page?: number; pageSize?: number }) => {
     const search = new URLSearchParams();
     if (params?.status) search.set('status', params.status);
