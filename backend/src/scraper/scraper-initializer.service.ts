@@ -36,9 +36,13 @@ export class ScraperInitializer implements OnModuleInit {
     for (const { name, instance } of scrapers) {
       try {
         const site = await instance.ensureSourceSite();
-        this.logger.log(`源站已就绪: ${name} (${site.domain}, ${site.ageRating})`);
+        this.logger.log(
+          `源站已就绪: ${name} (${site.domain}, ${site.ageRating})`,
+        );
       } catch (e) {
-        this.logger.warn(`源站 ${name} 初始化失败: ${e instanceof Error ? e.message : e}`);
+        this.logger.warn(
+          `源站 ${name} 初始化失败: ${e instanceof Error ? e.message : e}`,
+        );
       }
     }
   }

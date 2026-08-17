@@ -4,11 +4,15 @@ import { join, resolve } from 'path';
 
 export interface AppSettings {
   resourcePath: string;
+  baiduNetdiskEnabled: boolean;
+  baiduNetdiskPath: string;
 }
 
 const CONFIG_FILE = join(process.cwd(), 'settings.local.json');
 const DEFAULT_SETTINGS: AppSettings = {
   resourcePath: resolve(process.cwd(), '..', 'resourceFiles'),
+  baiduNetdiskEnabled: false,
+  baiduNetdiskPath: '/收藏家/漫画',
 };
 
 @Injectable()
@@ -55,10 +59,24 @@ export class SettingsService {
     return this.settings.resourcePath;
   }
 
+  get baiduNetdiskEnabled(): boolean {
+    return this.settings.baiduNetdiskEnabled;
+  }
+
+  get baiduNetdiskPath(): string {
+    return this.settings.baiduNetdiskPath;
+  }
+
   update(partial: Partial<AppSettings>): AppSettings {
     if (partial.resourcePath !== undefined) {
       this.settings.resourcePath = resolve(partial.resourcePath);
       this.ensureDir(this.settings.resourcePath);
+    }
+    if (partial.baiduNetdiskEnabled !== undefined) {
+      this.settings.baiduNetdiskEnabled = partial.baiduNetdiskEnabled;
+    }
+    if (partial.baiduNetdiskPath !== undefined) {
+      this.settings.baiduNetdiskPath = partial.baiduNetdiskPath;
     }
     this.save();
     return { ...this.settings };

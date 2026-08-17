@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BaseComicScraper, ScrapeResult } from '../base-comic-scraper';
 import { Manhwa18Parser } from './manhwa18-parser';
-import { SourceSite, SiteResourceType } from '../../entities/source-site.entity';
+import {
+  SourceSite,
+  SiteResourceType,
+} from '../../entities/source-site.entity';
 import { Resource } from '../../entities/resource.entity';
 import { ResourceSource } from '../../entities/resource-source.entity';
 import { Chapter } from '../../entities/chapter.entity';
@@ -246,8 +249,7 @@ export class Manhwa18ScraperService extends BaseComicScraper {
           ? `${this.baseUrl}/webtoons`
           : `${this.baseUrl}/webtoons/${page}`;
       this.logger.log(`第 ${page} 页: ${pageUrl}`);
-      if (taskId)
-        await this.taskService.log(taskId, 'info', `第 ${page} 页`);
+      if (taskId) await this.taskService.log(taskId, 'info', `第 ${page} 页`);
 
       let html: string | null = null;
       let cards: ReturnType<Manhwa18Parser['parseComicCards']> = [];
@@ -267,9 +269,7 @@ export class Manhwa18ScraperService extends BaseComicScraper {
             `第 ${page} 页抓取失败,已跳过: ${msg}`,
           );
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          this.logger.warn(
-            `连续 ${consecutiveFailures} 页抓取失败,停止翻页`,
-          );
+          this.logger.warn(`连续 ${consecutiveFailures} 页抓取失败,停止翻页`);
           if (taskId)
             await this.taskService.log(
               taskId,
@@ -308,7 +308,9 @@ export class Manhwa18ScraperService extends BaseComicScraper {
       page++;
     }
 
-    this.logger.log(`目录抓取完成: 共发现 ${discovered} 部, 新增 ${newCount} 部`);
+    this.logger.log(
+      `目录抓取完成: 共发现 ${discovered} 部, 新增 ${newCount} 部`,
+    );
     return { discovered, new: newCount };
   }
 
@@ -432,10 +434,7 @@ export class Manhwa18ScraperService extends BaseComicScraper {
       resource.isComplete = detail.status === 'completed' ? 1 : 0;
       resource.category = detail.genres[0] || resource.category;
       resource.extra = { ...(resource.extra || {}), ...extra };
-      if (
-        !this.coverFileExists(resource.localCoverPath) &&
-        detail.coverUrl
-      ) {
+      if (!this.coverFileExists(resource.localCoverPath) && detail.coverUrl) {
         const localCover = await this.downloadCover(
           slug,
           detail.coverUrl,

@@ -7,6 +7,7 @@ import { ScraperModule } from './scraper/scraper.module';
 import { ResourceModule } from './resource/resource.module';
 import { TaskModule } from './task/task.module';
 import { SettingsModule } from './settings/settings.module';
+import { BaiduNetdiskModule } from './baidu-netdisk/baidu-netdisk.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { SettingsModule } from './settings/settings.module';
     TaskModule,
     ScraperModule,
     ResourceModule,
+    BaiduNetdiskModule,
   ],
   controllers: [AppController],
   providers: [AppService],

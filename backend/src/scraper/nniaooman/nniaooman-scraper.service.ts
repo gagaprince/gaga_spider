@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BaseComicScraper, ScrapeResult } from '../base-comic-scraper';
 import { NniaoomanParser } from './nniaooman-parser';
-import { SourceSite, SiteResourceType } from '../../entities/source-site.entity';
+import {
+  SourceSite,
+  SiteResourceType,
+} from '../../entities/source-site.entity';
 import { Resource } from '../../entities/resource.entity';
 import { ResourceSource } from '../../entities/resource-source.entity';
 import { Chapter } from '../../entities/chapter.entity';
@@ -272,7 +275,9 @@ export class NniaoomanScraperService extends BaseComicScraper {
       }
     }
 
-    this.logger.log(`目录抓取完成: 共发现 ${discovered} 部, 新增 ${newCount} 部`);
+    this.logger.log(
+      `目录抓取完成: 共发现 ${discovered} 部, 新增 ${newCount} 部`,
+    );
     return { discovered, new: newCount };
   }
 
@@ -395,10 +400,7 @@ export class NniaoomanScraperService extends BaseComicScraper {
       resource.isComplete = detail.status === 'completed' ? 1 : 0;
       resource.category = detail.genres[0] || resource.category;
       resource.extra = { ...(resource.extra || {}), ...extra };
-      if (
-        !this.coverFileExists(resource.localCoverPath) &&
-        detail.coverUrl
-      ) {
+      if (!this.coverFileExists(resource.localCoverPath) && detail.coverUrl) {
         const localCover = await this.downloadCover(
           detailUrl.split('/').pop()!.replace('.html', ''),
           detail.coverUrl,

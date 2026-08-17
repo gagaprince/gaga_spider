@@ -26,6 +26,25 @@ export function DetailPage() {
   >({});
   const [exportingChapters, setExportingChapters] = useState(false);
   const [chapterMsg, setChapterMsg] = useState('');
+  const [netdiskEnabled, setNetdiskEnabled] = useState(false);
+  const [pdfUpload, setPdfUpload] = useState<{
+    active: boolean;
+    percent: number;
+    done: boolean;
+    error: string;
+  }>({ active: false, percent: 0, done: false, error: '' });
+  const [chapterUpload, setChapterUpload] = useState<{
+    active: boolean;
+    current: number;
+    total: number;
+    currentPercent: number;
+    fileName: string;
+    done: boolean;
+    error: string;
+  }>({
+    active: false, current: 0, total: 0, currentPercent: 0,
+    fileName: '', done: false, error: '',
+  });
   const [activeSourceSiteId, setActiveSourceSiteId] = useState<number | null>(
     null,
   );
@@ -50,6 +69,11 @@ export function DetailPage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+
+    api
+      .getBaiduNetdiskStatus()
+      .then((s) => setNetdiskEnabled(s.enabled && s.cli.installed && s.cli.loggedIn))
+      .catch(() => setNetdiskEnabled(false));
   }, [resourceId]);
 
   useEffect(() => {
@@ -148,6 +172,78 @@ export function DetailPage() {
     } finally {
       setExportingChapters(false);
     }
+  };
+
+  const startPdfUpload = () => {
+    const sid = hasMultipleSources ? activeSource?.sourceSiteId : undefined;
+    const url = api.uploadPdfStreamUrl(Number(resourceId), sid);
+    setPdfUpload({ active: true, percent: 0, done: false, error: '' });
+    const es = new EventSource(url);
+    es.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.type === 'file-progress') {
+          setPdfUpload((prev) => ({ ...prev, percent: d.percent }));
+        } else if (d.type === 'complete') {
+          setPdfUpload({ active: false, percent: 100, done: true, error: '' });
+          es.close();
+        } else if (d.type === 'error') {
+          setPdfUpload((prev) => ({ ...prev, active: false, error: d.message }));
+          es.close();
+        }
+      } catch { /* ignore */ }
+    };
+    es.onerror = () => {
+      setPdfUpload((prev) => ({ ...prev, active: false, error: '连接中断' }));
+      es.close();
+    };
+  };
+
+  const startChapterUpload = () => {
+    const sid = hasMultipleSources ? activeSource?.sourceSiteId : undefined;
+    const url = api.uploadChapterPdfsStreamUrl(Number(resourceId), sid);
+    setChapterUpload({
+      active: true, current: 0, total: 0,
+      currentPercent: 0, fileName: '', done: false, error: '',
+    });
+    const es = new EventSource(url);
+    es.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.type === 'start') {
+          setChapterUpload((prev) => ({ ...prev, total: d.total || 0 }));
+        } else if (d.type === 'batch-progress') {
+          setChapterUpload((prev) => ({
+            ...prev,
+            current: d.current ?? prev.current,
+            total: d.total ?? prev.total,
+            fileName: d.message || prev.fileName,
+            currentPercent: 0,
+          }));
+        } else if (d.type === 'file-progress') {
+          setChapterUpload((prev) => ({ ...prev, currentPercent: d.percent }));
+        } else if (d.type === 'complete') {
+          setChapterUpload((prev) => ({
+            ...prev,
+            active: false,
+            done: true,
+            current: prev.total,
+            currentPercent: 100,
+            fileName: d.failed > 0
+              ? `完成: ${d.uploaded} 成功, ${d.failed} 失败`
+              : `全部 ${d.uploaded} 个文件上传成功`,
+          }));
+          es.close();
+        } else if (d.type === 'error') {
+          setChapterUpload((prev) => ({ ...prev, active: false, error: d.message }));
+          es.close();
+        }
+      } catch { /* ignore */ }
+    };
+    es.onerror = () => {
+      setChapterUpload((prev) => ({ ...prev, active: false, error: '连接中断' }));
+      es.close();
+    };
   };
 
   return (
@@ -332,6 +428,39 @@ export function DetailPage() {
             下载整本 PDF ↓
           </a>
         )}
+        {netdiskEnabled && (activePdfPath || (!hasMultipleSources && data.pdfPath)) && (
+          <div style={{ marginTop: 8 }}>
+            <button
+              onClick={startPdfUpload}
+              disabled={pdfUpload.active}
+              style={{
+                ...downloadLink,
+                border: 'none',
+                background: pdfUpload.active ? '#81ecec' : '#00b894',
+                color: '#fff',
+                padding: '8px 16px',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                textAlign: 'center',
+                cursor: pdfUpload.active ? 'wait' : 'pointer',
+              }}
+            >
+              {pdfUpload.active ? `上传中 ${pdfUpload.percent}%` : '☁️ 上传整本 PDF 到网盘'}
+            </button>
+            {pdfUpload.active && (
+              <div style={{ marginTop: 6, height: 4, background: '#e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: `${pdfUpload.percent}%`, height: '100%', background: '#00b894', transition: 'width 0.3s' }} />
+              </div>
+            )}
+            {pdfUpload.done && (
+              <div style={{ ...msgStyle(true), marginTop: 6 }}>✓ 上传成功</div>
+            )}
+            {pdfUpload.error && (
+              <div style={{ ...msgStyle(false), marginTop: 6 }}>{pdfUpload.error}</div>
+            )}
+          </div>
+        )}
 
         {chapterMsg && (
           <div style={msgStyle((activeChapterPdfs?.length ?? 0) > 0)}>{chapterMsg}</div>
@@ -353,6 +482,26 @@ export function DetailPage() {
               >
                 📦 打包 ZIP ↓
               </a>
+              {netdiskEnabled && (
+                <button
+                  onClick={startChapterUpload}
+                  disabled={chapterUpload.active}
+                  style={{
+                    border: 'none',
+                    background: chapterUpload.active ? '#81ecec' : '#00b894',
+                    color: '#fff',
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: chapterUpload.active ? 'wait' : 'pointer',
+                  }}
+                >
+                  {chapterUpload.active
+                    ? `${chapterUpload.current}/${chapterUpload.total} ${chapterUpload.currentPercent}%`
+                    : '☁️ 全部上传'}
+                </button>
+              )}
             </div>
             <div style={chapterListWrap}>
               {activeChapterPdfs.map((ch, idx) => (
@@ -370,11 +519,36 @@ export function DetailPage() {
           </div>
         )}
 
+        {(chapterUpload.active || chapterUpload.done || chapterUpload.error) && (
+          <div style={{ marginTop: 8 }}>
+            {chapterUpload.active && (
+              <>
+                <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>
+                  {chapterUpload.fileName}
+                </div>
+                <div style={{ height: 4, background: '#e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${chapterUpload.total > 0 ? (chapterUpload.current / chapterUpload.total) * 100 : 0}%`,
+                    height: '100%', background: '#00b894', transition: 'width 0.3s',
+                  }} />
+                </div>
+              </>
+            )}
+            {chapterUpload.done && (
+              <div style={{ ...msgStyle(true), marginTop: 6 }}>{chapterUpload.fileName}</div>
+            )}
+            {chapterUpload.error && (
+              <div style={{ ...msgStyle(false), marginTop: 6 }}>{chapterUpload.error}</div>
+            )}
+          </div>
+        )}
+
         {!hasChapters && (
           <div style={{ ...msgStyle(false), marginTop: 8 }}>
             该资源暂无已抓取章节, 无法导出
           </div>
         )}
+
       </div>
 
       {/* 章节列表 */}

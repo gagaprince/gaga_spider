@@ -65,7 +65,9 @@ export class Manhwa18Parser {
         title: title.trim(),
         coverUrl,
         updateDate,
-        detailUrl: href.startsWith('http') ? href : `https://manhwa18.cc${href}`,
+        detailUrl: href.startsWith('http')
+          ? href
+          : `https://manhwa18.cc${href}`,
       });
     });
 

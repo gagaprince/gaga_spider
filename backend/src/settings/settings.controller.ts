@@ -11,7 +11,14 @@ export class SettingsController {
   }
 
   @Put()
-  update(@Body() body: { resourcePath?: string }) {
+  update(
+    @Body()
+    body: {
+      resourcePath?: string;
+      baiduNetdiskEnabled?: boolean;
+      baiduNetdiskPath?: string;
+    },
+  ) {
     return this.settingsService.update(body);
   }
 }

@@ -175,4 +175,20 @@ export const api = {
     `${API_BASE}/resources/${id}/chapter-pdfs/zip${
       sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
     }`,
+
+  getBaiduNetdiskStatus: () =>
+    request<{
+      enabled: boolean;
+      cli: { installed: boolean; loggedIn: boolean };
+    }>(`${API_BASE}/baidu-netdisk/status`),
+
+  uploadPdfStreamUrl: (id: number, sourceSiteId?: number) =>
+    `${API_BASE}/baidu-netdisk/upload-pdf/${id}/stream${
+      sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+    }`,
+
+  uploadChapterPdfsStreamUrl: (id: number, sourceSiteId?: number) =>
+    `${API_BASE}/baidu-netdisk/upload-chapter-pdfs/${id}/stream${
+      sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+    }`,
 };

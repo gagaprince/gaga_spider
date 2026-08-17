@@ -240,11 +240,46 @@ export const api = {
   deleteTask: (id: number) =>
     request<{ success: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
 
-  getSettings: () => request<{ resourcePath: string }>('/settings'),
+  getSettings: () =>
+    request<{
+      resourcePath: string;
+      baiduNetdiskEnabled: boolean;
+      baiduNetdiskPath: string;
+    }>('/settings'),
 
-  updateSettings: (resourcePath: string) =>
-    request<{ resourcePath: string }>('/settings', {
+  updateSettings: (settings: {
+    resourcePath?: string;
+    baiduNetdiskEnabled?: boolean;
+    baiduNetdiskPath?: string;
+  }) =>
+    request<{
+      resourcePath: string;
+      baiduNetdiskEnabled: boolean;
+      baiduNetdiskPath: string;
+    }>('/settings', {
       method: 'PUT',
-      body: JSON.stringify({ resourcePath }),
+      body: JSON.stringify(settings),
     }),
+
+  getBaiduNetdiskStatus: () =>
+    request<{
+      enabled: boolean;
+      remoteBasePath: string;
+      cli: {
+        installed: boolean;
+        loggedIn: boolean;
+        version: string | null;
+        error: string | null;
+      };
+    }>('/baidu-netdisk/status'),
+
+  uploadPdfStreamUrl: (id: number, sourceSiteId?: number) =>
+    `/api/baidu-netdisk/upload-pdf/${id}/stream${
+      sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+    }`,
+
+  uploadChapterPdfsStreamUrl: (id: number, sourceSiteId?: number) =>
+    `/api/baidu-netdisk/upload-chapter-pdfs/${id}/stream${
+      sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
+    }`,
 };
