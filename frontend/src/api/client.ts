@@ -196,6 +196,12 @@ export const api = {
       { method: 'POST' },
     ),
 
+  discoverDongmanmanhua: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/dongmanmanhua/discover',
+      { method: 'POST' },
+    ),
+
   discoverManhuazhan: () =>
     request<{ success: boolean; data: { discovered: number; new: number } }>(
       '/scraper/manhuazhan/discover',

@@ -77,9 +77,14 @@ export class ResourceService {
           .subQuery()
           .select('1')
           .from(ResourceCategory, 'rc')
-          .innerJoin(Category, 'c', 'c.id = rc.category_id AND c.name = :catName', {
-            catName: category,
-          })
+          .innerJoin(
+            Category,
+            'c',
+            'c.id = rc.category_id AND c.name = :catName',
+            {
+              catName: category,
+            },
+          )
           .where('rc.resource_id = r.id')
           .getQuery();
         return `EXISTS ${subQuery}`;
@@ -148,7 +153,7 @@ export class ResourceService {
           .getRawMany()
       : [];
     const categoriesByResource = new Map<number, string[]>();
-    for (const row of categoryRows as any[]) {
+    for (const row of categoryRows) {
       const list = categoriesByResource.get(row.resourceId) ?? [];
       list.push(row.name);
       categoriesByResource.set(row.resourceId, list);
@@ -577,10 +582,7 @@ export class ResourceService {
     fs.mkdirSync(chapterDir, { recursive: true });
 
     // 旧的整体 zip 缓存一并清除,打包下载时按需重新生成
-    const zipAbs = path.join(
-      pdfsFsBase,
-      `${dirName}.zip`,
-    );
+    const zipAbs = path.join(pdfsFsBase, `${dirName}.zip`);
     if (fs.existsSync(zipAbs)) {
       fs.rmSync(zipAbs, { force: true });
     }
@@ -673,10 +675,7 @@ export class ResourceService {
     const pdfsWebBase = subDir
       ? `/resourceFiles/${subDir}/pdfs`
       : '/resourceFiles/pdfs';
-    const chapterDir = path.join(
-      pdfsFsBase,
-      dirName,
-    );
+    const chapterDir = path.join(pdfsFsBase, dirName);
     if (!fs.existsSync(chapterDir)) return { chapters: [] };
 
     const files = fs
@@ -730,10 +729,7 @@ export class ResourceService {
       throw new Error('没有可打包的章节 PDF');
     }
 
-    const zipAbs = path.join(
-      pdfsFsBase,
-      `${dirName}.zip`,
-    );
+    const zipAbs = path.join(pdfsFsBase, `${dirName}.zip`);
     if (fs.existsSync(zipAbs)) {
       fs.rmSync(zipAbs, { force: true });
     }

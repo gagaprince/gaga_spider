@@ -11,6 +11,7 @@ import { DongmanhiScraperService } from './dongmanhi/dongmanhi-scraper.service';
 import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.service';
 import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
+import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scraper.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -24,6 +25,7 @@ export class ScraperController {
     private readonly manhuazhanScraper: ManhuazhanScraperService,
     private readonly nniaoomanScraper: NniaoomanScraperService,
     private readonly manhwa18Scraper: Manhwa18ScraperService,
+    private readonly dongmanmanhuaScraper: DongmanmanhuaScraperService,
     @InjectRepository(ResourceSource)
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(SourceSite)
@@ -133,6 +135,13 @@ export class ScraperController {
     return { success: true, data: result };
   }
 
+  // ===== 咚漫中文 (dongmanmanhua.cn) =====
+  @Post('dongmanmanhua/discover')
+  async discoverDongmanmanhua() {
+    const result = await this.dongmanmanhuaScraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   // ===== 路由解析 =====
   private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
@@ -146,6 +155,9 @@ export class ScraperController {
     }
     if (domain === 'manhwa18.cc') {
       return this.manhwa18Scraper;
+    }
+    if (domain === 'www.dongmanmanhua.cn') {
+      return this.dongmanmanhuaScraper;
     }
     return this.webtoonsScraper;
   }
