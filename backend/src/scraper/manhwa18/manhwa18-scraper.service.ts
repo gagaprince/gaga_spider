@@ -234,29 +234,76 @@ export class Manhwa18ScraperService extends BaseComicScraper {
     let newCount = 0;
     const seenSlugs = new Set<string>();
 
+    const MAX_PAGE = 1000;
+    const MAX_CONSECUTIVE_FAILURES = 5;
     let page = 1;
-    let hasNext = true;
-    while (hasNext) {
+    let consecutiveFailures = 0;
+
+    while (page <= MAX_PAGE) {
       if (taskId) this.checkCancelled(taskId);
       const pageUrl =
-        page === 1 ? `${this.baseUrl}/webtoons` : `${this.baseUrl}/webtoons/${page}`;
+        page === 1
+          ? `${this.baseUrl}/webtoons`
+          : `${this.baseUrl}/webtoons/${page}`;
       this.logger.log(`第 ${page} 页: ${pageUrl}`);
       if (taskId)
         await this.taskService.log(taskId, 'info', `第 ${page} 页`);
 
+      let html: string | null = null;
+      let cards: ReturnType<Manhwa18Parser['parseComicCards']> = [];
       try {
-        const { html } = await this.fetchPage(pageUrl);
-        const cards = this.parser.parseComicCards(html);
-        for (const card of cards) {
-          if (taskId) this.checkCancelled(taskId);
+        const result = await this.fetchPage(pageUrl);
+        html = result.html;
+        cards = this.parser.parseComicCards(html);
+        consecutiveFailures = 0;
+      } catch (e) {
+        consecutiveFailures++;
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`第 ${page} 页抓取失败,跳过本页继续: ${msg}`);
+        if (taskId)
+          await this.taskService.log(
+            taskId,
+            'warn',
+            `第 ${page} 页抓取失败,已跳过: ${msg}`,
+          );
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          this.logger.warn(
+            `连续 ${consecutiveFailures} 页抓取失败,停止翻页`,
+          );
+          if (taskId)
+            await this.taskService.log(
+              taskId,
+              'warn',
+              `连续 ${consecutiveFailures} 页失败,停止抓取`,
+            );
+          break;
+        }
+        page++;
+        continue;
+      }
+
+      for (const card of cards) {
+        if (taskId) this.checkCancelled(taskId);
+        try {
           const result = await this.processCard(card, site, seenSlugs);
           if (result === 'new') newCount++;
           if (result !== 'dup') discovered++;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.logger.warn(
+            `第 ${page} 页作品 ${card.slug} 处理失败,跳过: ${msg}`,
+          );
+          if (taskId)
+            await this.taskService.log(
+              taskId,
+              'warn',
+              `作品 ${card.slug} 处理失败: ${msg}`,
+            );
         }
-        hasNext = this.parser.hasNextPage(html) && cards.length > 0;
-      } catch (e) {
-        this.logger.warn(`第 ${page} 页抓取失败,停止翻页: ${e}`);
-        hasNext = false;
+      }
+
+      if (!this.parser.hasNextPage(html) || cards.length === 0) {
+        break;
       }
       page++;
     }

@@ -61,7 +61,7 @@ CREATE TABLE resource_sources (
   resource_id         INT            NOT NULL COMMENT '关联 resources',
   source_site_id      INT            NOT NULL COMMENT '关联 source_sites',
   source_url          VARCHAR(500)   NOT NULL COMMENT '资源在源站的列表页URL',
-  source_id           VARCHAR(100)   NULL     COMMENT '源站内ID',
+  source_id           VARCHAR(255)   NULL     COMMENT '源站内ID(英文站 slug 可能较长)',
   raw_title           VARCHAR(255)   NULL     COMMENT '源站原始标题',
   raw_data            JSON           NULL     COMMENT '源站原始抓取数据快照',
   last_scraped_at     DATETIME       NULL     COMMENT '最近抓取时间',

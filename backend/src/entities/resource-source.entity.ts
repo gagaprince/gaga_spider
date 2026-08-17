@@ -24,7 +24,7 @@ export class ResourceSource {
   @Column({ name: 'source_url', length: 500 })
   sourceUrl: string;
 
-  @Column({ name: 'source_id', length: 100, nullable: true })
+  @Column({ name: 'source_id', length: 255, nullable: true })
   sourceId: string;
 
   @Column({ name: 'raw_title', length: 255, nullable: true })
