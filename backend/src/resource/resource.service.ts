@@ -294,6 +294,7 @@ export class ResourceService {
     return {
       id: chapter.id,
       resourceId: chapter.resourceId,
+      sourceSiteId: chapter.sourceSiteId ?? null,
       orderIndex: chapter.orderIndex,
       title: chapter.title,
       pageCount: chapter.pageCount,

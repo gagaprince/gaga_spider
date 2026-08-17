@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { getReadingProgress } from '../utils/readingProgress';
 
 
 interface DetailData {
@@ -64,6 +65,11 @@ export function ResourceDetail() {
   >(null);
   const [exportingChapters, setExportingChapters] = useState(false);
   const [chapterExportError, setChapterExportError] = useState('');
+  const [readingProgress, setReadingProgress] = useState<{
+    chapterId: number;
+    chapterOrderIndex: number;
+    title: string;
+  } | null>(null);
 
   const selectSource = (sourceSiteId: number) => {
     const next = new URLSearchParams(searchParams);
@@ -86,6 +92,15 @@ export function ResourceDetail() {
       .catch((e: any) => setError(e.message))
       .finally(() => setLoading(false));
   }, [resourceId]);
+
+  useEffect(() => {
+    if (!resourceId || !data) {
+      setReadingProgress(null);
+      return;
+    }
+    const sourceSiteId = activeSourceSiteId ?? data.sources[0]?.sourceSiteId ?? null;
+    setReadingProgress(getReadingProgress(Number(resourceId), sourceSiteId));
+  }, [resourceId, data, activeSourceSiteId]);
 
   // 校验 URL 中的 sourceSiteId, 无效时替换为第一个源(不新增 history)
   useEffect(() => {
@@ -366,6 +381,48 @@ export function ResourceDetail() {
              </div>
            </div>
          )}
+
+          {/* Read / Continue reading */}
+          {visibleChapters.length > 0 && (() => {
+            const progressChapter =
+              readingProgress &&
+              visibleChapters.some((c) => c.id === readingProgress.chapterId)
+                ? readingProgress
+                : null;
+            const targetChapter = progressChapter
+              ? {
+                  id: progressChapter.chapterId,
+                  orderIndex: progressChapter.chapterOrderIndex,
+                  title: progressChapter.title || '',
+                }
+              : visibleChapters[0];
+            return (
+              <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() =>
+                    navigate(`/resources/${resourceId}/chapters/${targetChapter.id}`)
+                  }
+                  style={{
+                    border: 'none',
+                    background: '#27ae60',
+                    color: '#fff',
+                    padding: '10px 24px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontSize: 15,
+                    fontWeight: 700,
+                  }}
+                >
+                  {progressChapter ? '📖 继续阅读' : '📖 开始阅读'}
+                </button>
+                {progressChapter && (
+                  <span style={{ color: '#888', fontSize: 13 }}>
+                    上次读到: #{progressChapter.chapterOrderIndex} {progressChapter.title || ''}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {/* PDF Export */}
           <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

@@ -61,6 +61,7 @@ export interface ChapterImageItem {
 export interface ChapterData {
   id: number;
   resourceId: number;
+  sourceSiteId: number | null;
   orderIndex: number;
   title: string;
   pageCount: number;
@@ -131,6 +132,7 @@ export const api = {
   },
 
   getResource: (id: number) => request<DetailData>(`/resources/${id}`),
+
 
   getChapterImages: (chapterId: number) =>
     request<ChapterData>(`/resources/chapters/${chapterId}/images`),

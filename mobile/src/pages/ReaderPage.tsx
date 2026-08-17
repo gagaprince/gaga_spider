@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, assetUrl, type ChapterData } from '../api/client';
+import { saveReadingProgress } from '../utils/readingProgress';
 
 export function ReaderPage() {
   const { chapterId: chapterIdStr, resourceId } = useParams<{
@@ -31,6 +32,13 @@ export function ReaderPage() {
           return true;
         });
         setData({ ...d, images: deduped });
+        saveReadingProgress(
+          d.resourceId,
+          d.id,
+          d.orderIndex,
+          d.title,
+          d.sourceSiteId,
+        );
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -90,6 +98,28 @@ export function ReaderPage() {
             {downloadedImages.length}/{data.images.length} 张
           </div>
         </div>
+        <button
+          onClick={() =>
+            data.prevChapter &&
+            navigate(`/resources/${resourceId}/chapters/${data.prevChapter.id}`)
+          }
+          disabled={!data.prevChapter}
+          style={iconBtn(!!data.prevChapter)}
+          aria-label="上一章"
+        >
+          ‹
+        </button>
+        <button
+          onClick={() =>
+            data.nextChapter &&
+            navigate(`/resources/${resourceId}/chapters/${data.nextChapter.id}`)
+          }
+          disabled={!data.nextChapter}
+          style={iconBtn(!!data.nextChapter)}
+          aria-label="下一章"
+        >
+          ›
+        </button>
       </div>
 
       {!hasImages && (
@@ -198,11 +228,11 @@ const topBar: React.CSSProperties = {
   backdropFilter: 'blur(8px)',
   WebkitBackdropFilter: 'blur(8px)',
   borderBottom: '1px solid #333',
-  padding: '10px 12px',
+  padding: '10px 10px',
   paddingTop: 'calc(10px + env(safe-area-inset-top))',
   display: 'flex',
   alignItems: 'center',
-  gap: 10,
+  gap: 8,
 };
 
 const topBtn: React.CSSProperties = {
@@ -217,6 +247,22 @@ const topBtn: React.CSSProperties = {
   cursor: 'pointer',
   flexShrink: 0,
 };
+
+const iconBtn = (enabled: boolean): React.CSSProperties => ({
+  border: 'none',
+  background: 'rgba(255,255,255,0.12)',
+  color: enabled ? '#fff' : '#666',
+  width: 34,
+  height: 34,
+  minWidth: 34,
+  borderRadius: 8,
+  fontSize: 22,
+  lineHeight: 1,
+  cursor: enabled ? 'pointer' : 'default',
+  flexShrink: 0,
+  padding: 0,
+  boxSizing: 'border-box',
+});
 
 const topTitle: React.CSSProperties = {
   color: '#fff',

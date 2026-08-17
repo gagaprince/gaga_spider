@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { saveReadingProgress } from '../utils/readingProgress';
 
 interface ChapterImageItem {
   id: number;
@@ -13,6 +14,7 @@ interface ChapterImageItem {
 interface ChapterData {
   id: number;
   resourceId: number;
+  sourceSiteId: number | null;
   orderIndex: number;
   title: string;
   pageCount: number;
@@ -53,6 +55,13 @@ export function ChapterReader() {
             return true;
           });
           setData({ ...d, images: deduped });
+          saveReadingProgress(
+            d.resourceId,
+            d.id,
+            d.orderIndex,
+            d.title,
+            d.sourceSiteId,
+          );
         }
       })
       .catch((e) => setError(e.message))
@@ -130,6 +139,22 @@ export function ChapterReader() {
             {downloadedImages.length}/{data.images.length} 张图片
           </div>
         </div>
+        <button
+          onClick={() => data.prevChapter && navigate(`/resources/${resourceId}/chapters/${data.prevChapter.id}`)}
+          disabled={!data.prevChapter}
+          style={chapterNavBtn}
+          title={data.prevChapter ? `上一章: ${data.prevChapter.title}` : '已是第一章'}
+        >
+          ‹ 上一章
+        </button>
+        <button
+          onClick={() => data.nextChapter && navigate(`/resources/${resourceId}/chapters/${data.nextChapter.id}`)}
+          disabled={!data.nextChapter}
+          style={chapterNavBtn}
+          title={data.nextChapter ? `下一章: ${data.nextChapter.title}` : '已是最后一章'}
+        >
+          下一章 ›
+        </button>
       </div>
 
       {/* Images - seamless vertical scroll */}
@@ -231,6 +256,18 @@ const topBtnStyle: React.CSSProperties = {
   borderRadius: 8,
   cursor: 'pointer',
   fontSize: 14,
+  fontWeight: 600,
+  flexShrink: 0,
+};
+
+const chapterNavBtn: React.CSSProperties = {
+  border: 'none',
+  background: 'rgba(255,255,255,0.12)',
+  color: '#fff',
+  padding: '6px 12px',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontSize: 13,
   fontWeight: 600,
   flexShrink: 0,
 };

@@ -132,10 +132,12 @@ export const api = {
       sourceSiteId ? `?sourceSiteId=${sourceSiteId}` : ''
     }`,
 
+
   getChapterImages: (chapterId: number) =>
     request<{
       id: number;
       resourceId: number;
+      sourceSiteId: number | null;
       orderIndex: number;
       title: string;
       pageCount: number;

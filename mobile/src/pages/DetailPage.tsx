@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, assetUrl, type DetailData } from '../api/client';
+import { getReadingProgress } from '../utils/readingProgress';
 
 interface ChapterPdfItem {
   orderIndex: number;
@@ -28,6 +29,11 @@ export function DetailPage() {
   const [activeSourceSiteId, setActiveSourceSiteId] = useState<number | null>(
     null,
   );
+  const [readingProgress, setReadingProgress] = useState<{
+    chapterId: number;
+    chapterOrderIndex: number;
+    title: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!resourceId) return;
@@ -45,6 +51,15 @@ export function DetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [resourceId]);
+
+  useEffect(() => {
+    if (!resourceId || !data) {
+      setReadingProgress(null);
+      return;
+    }
+    const sourceSiteId = activeSourceSiteId ?? data.sources[0]?.sourceSiteId ?? null;
+    setReadingProgress(getReadingProgress(Number(resourceId), sourceSiteId));
+  }, [resourceId, data, activeSourceSiteId]);
 
   // 进入页面时回显已生成的分章 PDF
   useEffect(() => {
@@ -215,6 +230,49 @@ export function DetailPage() {
           </p>
         </div>
       )}
+
+      {/* 开始阅读 / 继续阅读 */}
+      {visibleChapters.length > 0 && (() => {
+        const progressChapter =
+          readingProgress &&
+          visibleChapters.some((c) => c.id === readingProgress.chapterId)
+            ? readingProgress
+            : null;
+        const targetChapter = progressChapter
+          ? {
+              id: progressChapter.chapterId,
+              orderIndex: progressChapter.chapterOrderIndex,
+              title: progressChapter.title || '',
+            }
+          : visibleChapters[0];
+        return (
+          <div style={{ padding: '0 14px 14px' }}>
+            <button
+              onClick={() =>
+                navigate(`/resources/${resourceId}/chapters/${targetChapter.id}`)
+              }
+              style={{
+                width: '100%',
+                border: 'none',
+                background: '#27ae60',
+                color: '#fff',
+                padding: '14px 0',
+                borderRadius: 10,
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {progressChapter ? '📖 继续阅读' : '📖 开始阅读'}
+            </button>
+            {progressChapter && (
+              <div style={{ fontSize: 12, color: '#999', marginTop: 6, textAlign: 'center' }}>
+                上次读到: #{progressChapter.chapterOrderIndex} {progressChapter.title || ''}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* PDF 导出区 */}
       {hasMultipleSources && activeSource && (
