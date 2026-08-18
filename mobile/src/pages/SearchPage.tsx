@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, assetUrl, type Resource } from '../api/client';
 import { useAgeRating } from "../hooks/useAgeRating";
+import {
+  getBookshelfIds,
+  isInBookshelf,
+  subscribeBookshelf,
+  toggleBookshelf,
+} from '../utils/bookshelf';
 
 interface CategoryInfo {
   name: string;
@@ -24,6 +30,7 @@ export function SearchPage() {
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [error, setError] = useState("");
   const [ageRating, setAgeRating] = useAgeRating();
+  const [shelfMode, setShelfMode] = useState(false);
   const reqId = useRef(0);
 
   const fetchCategories = useCallback(async () => {
@@ -68,10 +75,12 @@ export function SearchPage() {
   );
 
   useEffect(() => {
+    if (shelfMode) return;
     fetchFirst(committedKeyword, category, completion, ageRating);
-  }, [fetchFirst, committedKeyword, category, completion, ageRating]);
+  }, [fetchFirst, committedKeyword, category, completion, ageRating, shelfMode]);
 
   const loadMore = async () => {
+    if (shelfMode) return;
     if (loadingMore || items.length >= total) return;
     setLoadingMore(true);
     const next = page + 1;
@@ -93,6 +102,46 @@ export function SearchPage() {
       setLoadingMore(false);
     }
   };
+
+  const loadShelf = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const ids = getBookshelfIds();
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return (await api.getResource(id)) as unknown as Resource;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const filtered = results.filter(
+        (r): r is Resource =>
+          r !== null && (ageRating === 'adult' || r.ageRating !== 'adult'),
+      );
+      const normalized = filtered.map((r) => {
+        const names = (r.categories ?? [])
+          .map((c: any) => (typeof c === 'string' ? c : c?.name))
+          .filter(Boolean) as string[];
+        return { ...r, categories: names, category: r.category ?? names[0] ?? null };
+      });
+      setItems(normalized);
+      setTotal(normalized.length);
+      setPage(1);
+    } catch (e: any) {
+      setError(e.message || '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [ageRating]);
+
+  useEffect(() => {
+    if (!shelfMode) return;
+    loadShelf();
+    return subscribeBookshelf(loadShelf);
+  }, [shelfMode, loadShelf]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
   const hasMore = page < totalPages;
@@ -138,6 +187,34 @@ export function SearchPage() {
           >
             {ageRating === 'adult' ? '🔞' : '📚'}
           </button>
+          <button
+            onClick={() => {
+              setShelfMode((v) => !v);
+              setKeyword('');
+              setCommittedKeyword('');
+              setCategory('');
+              setCompletion('');
+              setPage(1);
+            }}
+            title="我的书架"
+            style={{
+              border: 'none',
+              background: shelfMode ? '#fdcb6e' : 'rgba(255,255,255,0.2)',
+              color: '#fff',
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              fontSize: 18,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            ⭐
+          </button>
           <form
             style={{ flex: 1 }}
             onSubmit={(e) => {
@@ -164,6 +241,7 @@ export function SearchPage() {
           </form>
         </div>
         {/* 筛选行 */}
+        {!shelfMode && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <select
             value={category}
@@ -187,6 +265,7 @@ export function SearchPage() {
             <option value="ongoing">连载中</option>
           </select>
         </div>
+        )}
       </header>
 
       {/* 内容区 */}
@@ -196,7 +275,7 @@ export function SearchPage() {
         ) : error ? (
           <div style={{ ...centerHint, color: '#e74c3c' }}>{error}</div>
         ) : items.length === 0 ? (
-          <div style={centerHint}>没有找到漫画</div>
+          <div style={centerHint}>{shelfMode ? '书架空空如也' : '没有找到漫画'}</div>
         ) : (
           <>
             <div
@@ -211,7 +290,7 @@ export function SearchPage() {
               ))}
             </div>
             <div style={{ textAlign: 'center', padding: '16px 0 24px' }}>
-              {hasMore ? (
+              {hasMore && !shelfMode ? (
                 <button
                   onClick={loadMore}
                   disabled={loadingMore}
@@ -221,7 +300,7 @@ export function SearchPage() {
                 </button>
               ) : (
                 <span style={{ color: '#aaa', fontSize: 13 }}>
-                  共 {total} 部, 已全部加载
+                  {shelfMode ? `书架共 ${total} 部` : `共 ${total} 部, 已全部加载`}
                 </span>
               )}
             </div>
@@ -243,10 +322,15 @@ function Card({ r, onClick }: { r: Resource; onClick: () => void }) {
     completed: '完结',
     unknown: '未知',
   };
-  const isScraped = r.chapterCount > 0;
-  const cover = assetUrl(r.localCoverPath || r.coverUrl);
+ const isScraped = r.chapterCount > 0;
+ const cover = assetUrl(r.localCoverPath || r.coverUrl);
+  const [inShelf, setInShelf] = useState(isInBookshelf(r.id));
+  useEffect(() => {
+    const sync = () => setInShelf(isInBookshelf(r.id));
+    return subscribeBookshelf(sync);
+  }, [r.id]);
 
-  return (
+ return (
     <div
       onClick={onClick}
       style={{
@@ -290,10 +374,36 @@ function Card({ r, onClick }: { r: Resource; onClick: () => void }) {
         <span style={badge(statusColors[r.status] || '#999', { top: 6, right: 6 })}>
           {statusLabels[r.status] || r.status}
         </span>
-        {isScraped && (
-          <span style={badge('#27ae60', { top: 6, left: 6 })}>✓</span>
-        )}
-        {(r.categories?.length || r.category) && (
+       {isScraped && (
+         <span style={badge('#27ae60', { top: 6, left: 6 })}>✓</span>
+       )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setInShelf(toggleBookshelf(r.id));
+          }}
+          aria-label={inShelf ? '移除书架' : '加入书架'}
+          style={{
+            position: 'absolute',
+            right: 6,
+            bottom: 6,
+            border: 'none',
+            background: 'rgba(0,0,0,0.45)',
+            color: inShelf ? '#fdcb6e' : '#fff',
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            fontSize: 15,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          {inShelf ? '⭐' : '☆'}
+        </button>
+       {(r.categories?.length || r.category) && (
           <span style={badge('rgba(108,92,231,0.9)', { bottom: 6, left: 6 })}>
             {(r.categories && r.categories.length > 0
               ? r.categories

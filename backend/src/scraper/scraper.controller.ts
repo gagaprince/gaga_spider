@@ -12,6 +12,7 @@ import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.servic
 import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
 import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scraper.service';
+import { AcgnScraperService } from './acgn/acgn-scraper.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -26,6 +27,7 @@ export class ScraperController {
     private readonly nniaoomanScraper: NniaoomanScraperService,
     private readonly manhwa18Scraper: Manhwa18ScraperService,
     private readonly dongmanmanhuaScraper: DongmanmanhuaScraperService,
+    private readonly acgnScraper: AcgnScraperService,
     @InjectRepository(ResourceSource)
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(SourceSite)
@@ -37,9 +39,12 @@ export class ScraperController {
   async scrapeByResource(
     @Body('resourceId') resourceId: number,
     @Body('maxChapters') maxChapters?: number,
+    @Body('sourceSiteId') sourceSiteId?: number,
   ) {
     const sources = await this.resourceSourceRepo.find({
-      where: { resourceId },
+      where: sourceSiteId
+        ? { resourceId, sourceSiteId }
+        : { resourceId },
       relations: ['sourceSite'],
     });
     if (sources.length === 0) {
@@ -142,6 +147,13 @@ export class ScraperController {
     return { success: true, data: result };
   }
 
+  // ===== 動漫戲說 (comic.acgn.cc) =====
+  @Post('acgn/discover')
+  async discoverAcgn() {
+    const result = await this.acgnScraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   // ===== 路由解析 =====
   private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
@@ -158,6 +170,9 @@ export class ScraperController {
     }
     if (domain === 'www.dongmanmanhua.cn') {
       return this.dongmanmanhuaScraper;
+    }
+    if (domain === 'comic.acgn.cc') {
+      return this.acgnScraper;
     }
     return this.webtoonsScraper;
   }

@@ -26,8 +26,8 @@ export function TaskPage() {
   const [toast, setToast] = useState('');
   const pageSize = 20;
 
-  const fetchTasks = useCallback(async () => {
-    setLoading(true);
+  const fetchTasks = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const resp = await api.getTasks({
         status: filterStatus || undefined,
@@ -39,7 +39,7 @@ export function TaskPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [filterStatus, page]);
 
@@ -51,7 +51,7 @@ export function TaskPage() {
   useEffect(() => {
     const hasRunning = tasks.some((t) => t.status === 'running' || t.status === 'pending');
     if (!hasRunning) return;
-    const timer = setInterval(() => fetchTasks(), 3000);
+    const timer = setInterval(() => fetchTasks(true), 3000);
     return () => clearInterval(timer);
   }, [tasks, fetchTasks]);
 
@@ -64,7 +64,7 @@ export function TaskPage() {
     try {
       await api.stopTask(id);
       showToast('任务已标记停止');
-      fetchTasks();
+      fetchTasks(true);
     } catch (e: any) {
       showToast(e.message);
     }
@@ -74,7 +74,7 @@ export function TaskPage() {
     try {
       await api.retryTask(id);
       showToast('任务已重新创建');
-      fetchTasks();
+      fetchTasks(true);
     } catch (e: any) {
       showToast(e.message);
     }
@@ -85,7 +85,7 @@ export function TaskPage() {
     try {
       await api.deleteTask(id);
       showToast('任务已删除');
-      fetchTasks();
+      fetchTasks(true);
     } catch (e: any) {
       showToast(e.message);
     }

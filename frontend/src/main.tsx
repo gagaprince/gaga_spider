@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { BookshelfPage } from './components/BookshelfPage'
+import { MyBookshelfPage } from './components/MyBookshelfPage'
 import { TaskPage } from './components/TaskPage'
 import { SettingsPage } from './components/SettingsPage'
 import { ResourceDetail } from './components/ResourceDetail'
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <BookshelfPage /> },
+      { path: 'my-bookshelf', element: <MyBookshelfPage /> },
       { path: 'tasks', element: <TaskPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'resources/:resourceId', element: <ResourceDetail /> },

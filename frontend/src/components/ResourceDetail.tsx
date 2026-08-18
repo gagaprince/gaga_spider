@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { getReadingProgress } from '../utils/readingProgress';
+import { isInBookshelf, subscribeBookshelf, toggleBookshelf } from '../utils/bookshelf';
 
 
 interface DetailData {
@@ -95,11 +96,83 @@ export function ResourceDetail() {
     chapterOrderIndex: number;
     title: string;
   } | null>(null);
+  const [rescraping, setRescraping] = useState(false);
+  const [rescrapeProgress, setRescrapeProgress] = useState('');
+  const [rescrapeError, setRescrapeError] = useState('');
+  const [inBookshelf, setInBookshelf] = useState(false);
+  const [chapterOrder, setChapterOrder] = useState<'desc' | 'asc'>('desc');
+  const [chapterPdfsExpanded, setChapterPdfsExpanded] = useState(false);
+  useEffect(() => {
+    if (!resourceId) return;
+    const id = Number(resourceId);
+    const sync = () => setInBookshelf(isInBookshelf(id));
+    sync();
+    return subscribeBookshelf(sync);
+  }, [resourceId]);
 
   const selectSource = (sourceSiteId: number) => {
     const next = new URLSearchParams(searchParams);
     next.set('sourceSiteId', String(sourceSiteId));
     setSearchParams(next);
+  };
+
+  const reloadDetail = () => {
+    if (!resourceId) return;
+    fetch(`/api/resources/${resourceId}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('加载失败');
+        return r.json();
+      })
+      .then((d) => setData(d))
+      .catch(() => {});
+  };
+
+  const handleRescrape = async () => {
+    if (!resourceId || !activeSource || rescraping) return;
+    setRescraping(true);
+    setRescrapeError('');
+    setRescrapeProgress('提交任务...');
+    try {
+      const resp = await api.scrapeResource(
+        Number(resourceId),
+        0,
+        activeSource.sourceSiteId,
+      );
+      const taskInfo = resp.data.tasks.find(
+        (t) => t.sourceSiteId === activeSource.sourceSiteId,
+      );
+      if (!taskInfo) throw new Error('未创建抓取任务');
+
+      const taskId = taskInfo.taskId;
+      const poll = async () => {
+        const task = await api.getTask(taskId);
+        const done = task.doneItems || 0;
+        const total = task.totalItems || 0;
+        if (task.status === 'running' || task.status === 'pending') {
+          setRescrapeProgress(
+            total > 0 ? `抓取中... ${done}/${total}` : '抓取中...',
+          );
+          setTimeout(poll, 2000);
+        } else if (task.status === 'success') {
+          setRescrapeProgress('');
+          setRescraping(false);
+          reloadDetail();
+        } else if (task.status === 'failed' || task.status === 'cancelled') {
+          setRescrapeError(
+            task.status === 'cancelled' ? '任务已停止' : task.errorMessage || '抓取失败',
+          );
+          setRescrapeProgress('');
+          setRescraping(false);
+        } else {
+          setTimeout(poll, 2000);
+        }
+      };
+      setTimeout(poll, 2000);
+    } catch (e: any) {
+      setRescrapeError(e.message || '重新抓取失败');
+      setRescrapeProgress('');
+      setRescraping(false);
+    }
   };
 
   useEffect(() => {
@@ -202,6 +275,9 @@ export function ResourceDetail() {
   const visibleChapters = hasMultipleSources
     ? data.chapters.filter((c) => c.sourceSiteId === activeSource?.sourceSiteId)
     : data.chapters;
+  const sortedChapters = [...visibleChapters].sort((a, b) =>
+    chapterOrder === 'desc' ? b.orderIndex - a.orderIndex : a.orderIndex - b.orderIndex,
+  );
   const activePdfPath = activeSource
     ? pdfPaths[activeSource.sourceSiteId]
     : null;
@@ -279,7 +355,7 @@ export function ResourceDetail() {
 
         {/* Meta */}
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
             <h1
               style={{
                 margin: 0,
@@ -302,6 +378,51 @@ export function ResourceDetail() {
             >
               {statusLabels[data.status] || data.status}
             </span>
+            {activeSource && (
+              <button
+                onClick={handleRescrape}
+                disabled={rescraping}
+                title={rescrapeProgress || '重新抓取最新章节'}
+                style={{
+                  border: 'none',
+                  background: rescraping ? '#a29bfe' : '#e17055',
+                  color: '#fff',
+                  padding: '5px 14px',
+                  borderRadius: 14,
+                  cursor: rescraping ? 'wait' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                {rescraping ? (rescrapeProgress || '更新中...') : '🔄 更新'}
+              </button>
+            )}
+            <button
+              onClick={() => resourceId && setInBookshelf(toggleBookshelf(Number(resourceId)))}
+              title={inBookshelf ? "从我的书架移除" : "加入我的书架"}
+              style={{
+                border: "none",
+                background: inBookshelf ? "#fff" : "#6c5ce7",
+                color: inBookshelf ? "#6c5ce7" : "#fff",
+                padding: "5px 14px",
+                borderRadius: 14,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                boxShadow: inBookshelf ? "inset 0 0 0 1px #6c5ce7" : "none",
+              }}
+            >
+              {inBookshelf ? "⭐ 已在书架" : "☆ 加入书架"}
+            </button>
+            {rescrapeError && (
+              <span style={{ color: '#e74c3c', fontSize: 12 }}>{rescrapeError}</span>
+            )}
           </div>
 
           {/* Authors */}
@@ -625,11 +746,27 @@ export function ResourceDetail() {
                   alignItems: 'center',
                   gap: 12,
                   marginBottom: 8,
+                  flexWrap: 'wrap',
                 }}
               >
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#2d3436' }}>
+                <button
+                  onClick={() => setChapterPdfsExpanded((v) => !v)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#2d3436',
+                  }}
+                >
+                  <span>{chapterPdfsExpanded ? '▼' : '▶'}</span>
                   📚 分章 PDF ({activeChapterPdfs.length} 个)
-                </span>
+                </button>
                 <a
                   href={api.chapterPdfsZipUrl(
                     Number(resourceId),
@@ -711,6 +848,7 @@ export function ResourceDetail() {
                   </button>
                 )}
               </div>
+              {chapterPdfsExpanded && (
               <div
                 style={{
                   maxHeight: 260,
@@ -771,6 +909,7 @@ export function ResourceDetail() {
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
         </div>
@@ -778,18 +917,39 @@ export function ResourceDetail() {
 
       {/* Chapter list */}
       <div style={{ padding: '0 24px 32px' }}>
-        <h2
+        <div
           style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: '#2d3436',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
             marginBottom: 12,
             paddingBottom: 8,
             borderBottom: '2px solid #6c5ce7',
           }}
         >
-          章节列表 ({visibleChapters.length})
-        </h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#2d3436', margin: 0 }}>
+            章节列表 ({visibleChapters.length})
+          </h2>
+          <button
+            onClick={() => setChapterOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
+            title="切换章节排序"
+            style={{
+              border: '1px solid #6c5ce7',
+              background: '#fff',
+              color: '#6c5ce7',
+              padding: '4px 12px',
+              borderRadius: 14,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {chapterOrder === 'desc' ? '⬇ 倒序' : '⬆ 正序'}
+          </button>
+        </div>
         <div
           style={{
             background: '#fff',
@@ -798,7 +958,7 @@ export function ResourceDetail() {
             border: '1px solid #eee',
           }}
         >
-         {visibleChapters.map((ch, idx) => (
+         {sortedChapters.map((ch, idx) => (
            <div
              key={ch.id}
               onClick={() => navigate(`/resources/${resourceId}/chapters/${ch.id}`)}
@@ -807,7 +967,7 @@ export function ResourceDetail() {
                alignItems: 'center',
                gap: 12,
                padding: '12px 16px',
-               borderBottom: idx < visibleChapters.length - 1 ? '1px solid #f0f0f0' : 'none',
+               borderBottom: idx < sortedChapters.length - 1 ? '1px solid #f0f0f0' : 'none',
                fontSize: 14,
                cursor: 'pointer',
                transition: 'background 0.15s',

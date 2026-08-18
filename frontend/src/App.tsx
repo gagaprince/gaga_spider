@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
-type PageId = 'bookshelf' | 'tasks' | 'settings';
+type PageId = 'bookshelf' | 'my-bookshelf' | 'tasks' | 'settings';
 
 const menuItems: { id: PageId; label: string; icon: string; path: string }[] = [
-  { id: 'bookshelf', label: '书架管理', icon: '📚', path: '/' },
+  { id: 'bookshelf', label: '所有漫画', icon: '📚', path: '/' },
+  { id: 'my-bookshelf', label: '我的书架', icon: '⭐', path: '/my-bookshelf' },
   { id: 'tasks', label: '任务管理', icon: '📋', path: '/tasks' },
   { id: 'settings', label: '设置', icon: '⚙️', path: '/settings' },
 ];

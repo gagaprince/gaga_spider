@@ -4,6 +4,7 @@ import { api, type Resource } from '../api/client';
 import { ScrapeModal } from './ScrapeModal';
 import { BatchScrapeModal } from './BatchScrapeModal';
 import { useAgeRating } from '../hooks/useAgeRating';
+import { isInBookshelf, subscribeBookshelf, toggleBookshelf } from '../utils/bookshelf';
 
 interface CategoryInfo {
   name: string;
@@ -30,6 +31,7 @@ export function BookshelfPage() {
   const sourceSiteFilter = searchParams.get('sourceSite') || '';
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [sourceSites, setSourceSites] = useState<SourceSiteInfo[]>([]);
+  const [sourceSitesLoaded, setSourceSitesLoaded] = useState(false);
   const [showScrape, setShowScrape] = useState(false);
   const [showBatch, setShowBatch] = useState(false);
   const [toast, setToast] = useState('');
@@ -110,12 +112,14 @@ export function BookshelfPage() {
     try {
       const sites = await api.getSourceSites(ageRating);
       setSourceSites(sites);
+      setSourceSitesLoaded(true);
     } catch (e) {
       console.error(e);
     }
   }, [ageRating]);
 
   useEffect(() => {
+    if (!sourceSitesLoaded) return;
     if (sourceSiteFilter && !sourceSites.some((s) => s.domain === sourceSiteFilter)) {
       updateParams({ sourceSite: '' });
     }
@@ -126,7 +130,7 @@ export function BookshelfPage() {
     } else {
       setDiscoverDomain('');
     }
-  }, [sourceSites, sourceSiteFilter, discoverDomain, updateParams]);
+  }, [sourceSites, sourceSitesLoaded, sourceSiteFilter, discoverDomain, updateParams]);
 
   useEffect(() => {
     fetchResources();
@@ -162,6 +166,8 @@ export function BookshelfPage() {
               ? await api.discoverManhwa18()
               : discoverDomain === 'www.dongmanmanhua.cn'
                 ? await api.discoverDongmanmanhua()
+                : discoverDomain === 'comic.acgn.cc'
+                  ? await api.discoverAcgn()
               : await api.discoverManhuazhan();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       goToPage(1, true);
@@ -402,6 +408,11 @@ function ResourceCard({
   const statusColors: Record<string, string> = { ongoing: '#27ae60', completed: '#3498db', unknown: '#999' };
   const statusLabels: Record<string, string> = { ongoing: '连载中', completed: '已完结', unknown: '未知' };
   const isScraped = r.chapterCount > 0;
+  const [inBookshelf, setInBookshelf] = useState(isInBookshelf(r.id));
+  useEffect(() => {
+    const sync = () => setInBookshelf(isInBookshelf(r.id));
+    return subscribeBookshelf(sync);
+  }, [r.id]);
   return (
     <div
       style={{ background: '#fff', borderRadius: 10, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'box-shadow 0.2s, transform 0.2s', cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
@@ -444,12 +455,12 @@ function ResourceCard({
           </div>
         </div>
       </div>
-      {/* Scrape button */}
+      <div style={{ display: 'flex', gap: 6, margin: '0 10px 10px' }}>
       <button
         onClick={(e) => { e.stopPropagation(); onScrape(); }}
         disabled={scraping}
         style={{
-          margin: '0 10px 10px',
+          flex: 1,
           padding: '6px 0',
           border: 'none',
           borderRadius: 6,
@@ -465,6 +476,25 @@ function ResourceCard({
       >
         {scraping ? '创建中...' : isScraped ? '重新抓取' : '抓取全本'}
       </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); setInBookshelf(toggleBookshelf(r.id)); }}
+          title={inBookshelf ? "从我的书架移除" : "加入我的书架"}
+          style={{
+            flex: 1,
+            padding: "6px 0",
+            border: "none",
+            borderRadius: 6,
+            background: inBookshelf ? "#fff" : "#6c5ce7",
+            color: inBookshelf ? "#6c5ce7" : "#fff",
+            cursor: "pointer",
+            fontSize: 12,
+            fontWeight: 600,
+            boxShadow: inBookshelf ? "inset 0 0 0 1px #6c5ce7" : "none",
+          }}
+        >
+          {inBookshelf ? "⭐ 已在书架" : "☆ 加入书架"}
+        </button>
+      </div>
     </div>
   );
 }

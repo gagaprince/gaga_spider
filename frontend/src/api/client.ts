@@ -169,7 +169,11 @@ export const api = {
       body: JSON.stringify({ titleNo, maxChapters }),
     }),
 
-  scrapeResource: (resourceId: number, maxChapters?: number) =>
+  scrapeResource: (
+    resourceId: number,
+    maxChapters?: number,
+    sourceSiteId?: number,
+  ) =>
     request<{
       success: boolean;
       data: {
@@ -180,9 +184,11 @@ export const api = {
       '/scraper/scrape-resource',
       {
         method: 'POST',
-        body: JSON.stringify({ resourceId, maxChapters }),
+        body: JSON.stringify({ resourceId, maxChapters, sourceSiteId }),
       },
     ),
+
+  getTask: (id: number) => request<TaskItem>(`/tasks/${id}`),
 
   discoverWebtoons: () =>
     request<{ success: boolean; data: { discovered: number; new: number } }>(
@@ -217,6 +223,12 @@ export const api = {
   discoverManhwa18: () =>
     request<{ success: boolean; data: { discovered: number; new: number } }>(
       '/scraper/manhwa18/discover',
+      { method: 'POST' },
+    ),
+
+  discoverAcgn: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/acgn/discover',
       { method: 'POST' },
     ),
 

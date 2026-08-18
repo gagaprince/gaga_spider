@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, assetUrl, type DetailData } from '../api/client';
 import { getReadingProgress } from '../utils/readingProgress';
+import { isInBookshelf, subscribeBookshelf, toggleBookshelf } from '../utils/bookshelf';
 
 interface ChapterPdfItem {
   orderIndex: number;
@@ -53,6 +54,16 @@ export function DetailPage() {
     chapterOrderIndex: number;
     title: string;
   } | null>(null);
+  const [inBookshelf, setInBookshelf] = useState(false);
+  const [chapterOrder, setChapterOrder] = useState<'desc' | 'asc'>('desc');
+  const [chapterPdfsExpanded, setChapterPdfsExpanded] = useState(false);
+  useEffect(() => {
+    if (!resourceId) return;
+    const id = Number(resourceId);
+    const sync = () => setInBookshelf(isInBookshelf(id));
+    sync();
+    return subscribeBookshelf(sync);
+  }, [resourceId]);
 
   useEffect(() => {
     if (!resourceId) return;
@@ -124,6 +135,9 @@ export function DetailPage() {
   const visibleChapters = hasMultipleSources
     ? data.chapters.filter((c) => c.sourceSiteId === activeSource?.sourceSiteId)
     : data.chapters;
+  const sortedChapters = [...visibleChapters].sort((a, b) =>
+    chapterOrder === 'desc' ? b.orderIndex - a.orderIndex : a.orderIndex - b.orderIndex,
+  );
   const hasChapters = visibleChapters.length > 0;
   const activePdfPath = activeSource
     ? pdfPaths[activeSource.sourceSiteId]
@@ -370,6 +384,28 @@ export function DetailPage() {
         );
       })()}
 
+      {/* 加入/移除书架 */}
+      <div style={{ padding: '0 14px 14px' }}>
+        <button
+          onClick={() =>
+            resourceId && setInBookshelf(toggleBookshelf(Number(resourceId)))
+          }
+          style={{
+            width: '100%',
+            border: inBookshelf ? '1px solid #6c5ce7' : 'none',
+            background: inBookshelf ? '#fff' : '#6c5ce7',
+            color: inBookshelf ? '#6c5ce7' : '#fff',
+            padding: '12px 0',
+            borderRadius: 10,
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {inBookshelf ? '⭐ 已在书架（点击移除）' : '☆ 加入书架'}
+        </button>
+      </div>
+
       {/* PDF 导出区 */}
       {hasMultipleSources && activeSource && (
         <div style={{ padding: '0 14px', marginBottom: 12 }}>
@@ -468,10 +504,25 @@ export function DetailPage() {
 
         {activeChapterPdfs && activeChapterPdfs.length > 0 && (
           <div style={{ marginTop: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setChapterPdfsExpanded((v) => !v)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#2d3436',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>{chapterPdfsExpanded ? '▼' : '▶'}</span>
                 分章 PDF ({activeChapterPdfs.length})
-              </span>
+              </button>
               <a
                 href={api.chapterPdfsZipUrl(
                   Number(resourceId),
@@ -503,6 +554,7 @@ export function DetailPage() {
                 </button>
               )}
             </div>
+            {chapterPdfsExpanded && (
             <div style={chapterListWrap}>
               {activeChapterPdfs.map((ch, idx) => (
                 <div key={ch.orderIndex} style={chapterRow(idx < activeChapterPdfs.length - 1)}>
@@ -516,6 +568,7 @@ export function DetailPage() {
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -553,15 +606,32 @@ export function DetailPage() {
 
       {/* 章节列表 */}
       <div style={{ padding: '0 14px' }}>
-        <div style={sectionTitle}>📖 章节列表 ({visibleChapters.length})</div>
+        <div style={{ ...sectionTitle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>📖 章节列表 ({visibleChapters.length})</span>
+          <button
+            onClick={() => setChapterOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}
+            style={{
+              border: '1px solid #6c5ce7',
+              background: '#fff',
+              color: '#6c5ce7',
+              padding: '3px 10px',
+              borderRadius: 12,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {chapterOrder === 'desc' ? '⬇ 倒序' : '⬆ 正序'}
+          </button>
+        </div>
         <div style={chapterListWrap}>
-          {visibleChapters.map((ch, idx) => (
+          {sortedChapters.map((ch, idx) => (
             <div
               key={ch.id}
               onClick={() =>
                 navigate(`/resources/${resourceId}/chapters/${ch.id}`)
               }
-              style={chapterRow(idx < visibleChapters.length - 1, true)}
+              style={chapterRow(idx < sortedChapters.length - 1, true)}
             >
               <span style={{ color: '#aaa', width: 36, flexShrink: 0, fontSize: 12 }}>
                 #{ch.orderIndex}

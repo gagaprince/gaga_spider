@@ -386,10 +386,11 @@ POST /scraper/webtoons/scrape-resource
 
 **请求体**
 
-| 参数        | 类型   | 必填 | 说明                         |
-| ----------- | ------ | ---- | ---------------------------- |
-| resourceId  | number | 是   | 本地资源 ID                  |
-| maxChapters | number | 否   | 最多抓取章节数,`0` 为全部    |
+| 参数         | 类型   | 必填 | 说明                                   |
+| ------------ | ------ | ---- | -------------------------------------- |
+| resourceId   | number | 是   | 本地资源 ID                            |
+| maxChapters  | number | 否   | 最多抓取章节数,`0` 为全部              |
+| sourceSiteId | number | 否   | 只抓取指定来源；不传则抓取该书全部来源 |
 
 **响应示例**
 
@@ -412,10 +413,11 @@ POST /scraper/scrape-resource
 
 **请求体**
 
-| 参数        | 类型   | 必填 | 说明                         |
-| ----------- | ------ | ---- | ---------------------------- |
-| resourceId  | number | 是   | 本地资源 ID                  |
-| maxChapters | number | 否   | 最多抓取章节数,`0` 为全部    |
+| 参数         | 类型   | 必填 | 说明                                   |
+| ------------ | ------ | ---- | -------------------------------------- |
+| resourceId   | number | 是   | 本地资源 ID                            |
+| maxChapters  | number | 否   | 最多抓取章节数,`0` 为全部              |
+| sourceSiteId | number | 否   | 只抓取指定来源；不传则抓取该书全部来源 |
 
 **响应示例**
 
@@ -433,6 +435,8 @@ POST /scraper/scrape-resource
 ```
 
 > 单源书籍 `tasks` 只有一项。抓取完成后 `resources.chapter_count` 汇总该书所有源的章节总数。
+>
+> 详情页的「🔄 更新」按钮即调用本接口，并传入当前选中来源的 `sourceSiteId`，因此只刷新该来源。前端拿到 `taskId` 后通过 `GET /tasks/:id` 轮询进度（2 秒一次），任务 `success` 后重新拉取 `GET /api/resources/:id` 刷新章节列表。
 
 ---
 

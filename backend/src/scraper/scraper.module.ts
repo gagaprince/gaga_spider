@@ -6,6 +6,7 @@ import { ManhuazhanScraperService } from './manhuazhan/manhuazhan-scraper.servic
 import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
 import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scraper.service';
+import { AcgnScraperService } from './acgn/acgn-scraper.service';
 import { ScraperInitializer } from './scraper-initializer.service';
 import { ScraperController } from './scraper.controller';
 import { SourceSite } from '../entities/source-site.entity';
@@ -44,6 +45,7 @@ import { SettingsModule } from '../settings/settings.module';
     NniaoomanScraperService,
     Manhwa18ScraperService,
     DongmanmanhuaScraperService,
+    AcgnScraperService,
     ScraperInitializer,
   ],
   exports: [
@@ -53,6 +55,7 @@ import { SettingsModule } from '../settings/settings.module';
     NniaoomanScraperService,
     Manhwa18ScraperService,
     DongmanmanhuaScraperService,
+    AcgnScraperService,
   ],
 })
 export class ScraperModule {}
