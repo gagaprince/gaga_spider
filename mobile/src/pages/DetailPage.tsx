@@ -143,7 +143,9 @@ export function DetailPage() {
     ? pdfPaths[activeSource.sourceSiteId]
     : null;
   const activeChapterPdfs = activeSource
-    ? chapterPdfsBySource[activeSource.sourceSiteId] ?? chapterPdfs
+    ? chapterPdfsBySource[activeSource.sourceSiteId]?.length
+      ? chapterPdfsBySource[activeSource.sourceSiteId]
+      : chapterPdfs
     : chapterPdfs;
 
   const handleExportPdf = async () => {
@@ -169,7 +171,7 @@ export function DetailPage() {
     setExportingChapters(true);
     setChapterMsg('');
     try {
-      const sid = hasMultipleSources ? activeSource?.sourceSiteId : undefined;
+      const sid = activeSource?.sourceSiteId;
       const r = await api.exportChapterPdfs(Number(resourceId), sid);
       const mapped = r.chapters.map((c) => ({
           orderIndex: c.orderIndex,
@@ -177,9 +179,8 @@ export function DetailPage() {
           pdfPath: c.pdfPath,
         }));
       setChapterPdfs(mapped);
-      if (sid != null) {
-        setChapterPdfsBySource((prev) => ({ ...prev, [sid]: mapped }));
-      }
+      if (sid != null) setChapterPdfsBySource((prev) => ({ ...prev, [sid]: mapped }));
+      setChapterPdfsExpanded(true);
       setChapterMsg(`已生成 ${r.chapters.length} 个分章 PDF`);
     } catch (e: any) {
       setChapterMsg(e.message || '导出失败');

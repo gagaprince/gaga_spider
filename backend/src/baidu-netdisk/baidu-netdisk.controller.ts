@@ -160,7 +160,11 @@ export class BaiduNetdiskController {
     const suffix = sourceSiteId ? `_${sourceSiteId}` : '';
     const absPath = path.join(pdfDir, `${safeTitle}${suffix}.pdf`);
 
-    const remoteDir = this.buildRemoteDir(categoryName, safeTitle);
+    const remoteDir = this.buildRemoteDir(
+      categoryName,
+      safeTitle,
+      resource.ageRating,
+    );
     const remotePath = path.posix.join(remoteDir, `${safeTitle}.pdf`);
 
     return { absPath, remotePath };
@@ -185,7 +189,11 @@ export class BaiduNetdiskController {
     const absChapterDir = path.join(pdfsFsBase, dirName);
     const absZipPath = path.join(pdfsFsBase, `${dirName}.zip`);
 
-    const remoteDir = this.buildRemoteDir(categoryName, safeTitle);
+    const remoteDir = this.buildRemoteDir(
+      categoryName,
+      safeTitle,
+      resource.ageRating,
+    );
     const files: { localAbsPath: string; remotePath: string }[] = [];
 
     if (fs.existsSync(absChapterDir)) {
@@ -220,10 +228,17 @@ export class BaiduNetdiskController {
     return files;
   }
 
-  private buildRemoteDir(categoryName: string, safeTitle: string): string {
-    return path.posix
-      .join(this.settingsService.baiduNetdiskPath, categoryName, safeTitle)
-      .replace(/\\/g, '/');
+  private buildRemoteDir(
+    categoryName: string,
+    safeTitle: string,
+    ageRating?: AgeRating,
+  ): string {
+    const segments = [this.settingsService.baiduNetdiskPath];
+    if (ageRating === AgeRating.ADULT) {
+      segments.push('其他分类');
+    }
+    segments.push(categoryName, safeTitle);
+    return path.posix.join(...segments).replace(/\\/g, '/');
   }
 
   private makeSafeTitle(resource: Resource): string {
