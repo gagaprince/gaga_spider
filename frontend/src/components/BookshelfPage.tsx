@@ -5,6 +5,7 @@ import { ScrapeModal } from './ScrapeModal';
 import { BatchScrapeModal } from './BatchScrapeModal';
 import { useAgeRating } from '../hooks/useAgeRating';
 import { isInBookshelf, subscribeBookshelf, toggleBookshelf } from '../utils/bookshelf';
+import { CoverPlaceholder } from './CoverPlaceholder';
 
 interface CategoryInfo {
   name: string;
@@ -168,6 +169,10 @@ export function BookshelfPage() {
                 ? await api.discoverDongmanmanhua()
                 : discoverDomain === 'comic.acgn.cc'
                   ? await api.discoverAcgn()
+                  : discoverDomain === 'www.antbyw.com'
+                    ? await api.discoverAntbyw()
+                    : discoverDomain === 'jcomic.net'
+                      ? await api.discoverJcomic()
               : await api.discoverManhuazhan();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       goToPage(1, true);
@@ -424,7 +429,7 @@ function ResourceCard({
           {(r.localCoverPath || r.coverUrl) ? (
             <img src={r.localCoverPath || r.coverUrl!} alt={r.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, color: '#ccc' }}>📖</div>
+            <CoverPlaceholder />
           )}
           <span style={{ position: 'absolute', top: 8, right: 8, background: statusColors[r.status] || '#999', color: '#fff', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 }}>
             {statusLabels[r.status] || r.status}

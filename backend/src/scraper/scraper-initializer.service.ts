@@ -6,6 +6,8 @@ import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
 import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scraper.service';
 import { AcgnScraperService } from './acgn/acgn-scraper.service';
+import { AntbywScraperService } from './antbyw/antbyw-scraper.service';
+import { JcomicScraperService } from './jcomic/jcomic-scraper.service';
 
 /**
  * 后端启动时确保所有已注册 scraper 的源站记录存在于 source_sites 表。
@@ -23,6 +25,8 @@ export class ScraperInitializer implements OnModuleInit {
     private readonly manhwa18: Manhwa18ScraperService,
     private readonly dongmanmanhua: DongmanmanhuaScraperService,
     private readonly acgn: AcgnScraperService,
+    private readonly antbyw: AntbywScraperService,
+    private readonly jcomic: JcomicScraperService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -34,6 +38,8 @@ export class ScraperInitializer implements OnModuleInit {
       { name: 'Manhwa18', instance: this.manhwa18 },
       { name: '咚漫中文', instance: this.dongmanmanhua },
       { name: '動漫戲說', instance: this.acgn },
+      { name: '蚂蚁搬运网', instance: this.antbyw },
+      { name: 'JComic', instance: this.jcomic },
     ];
 
     for (const { name, instance } of scrapers) {

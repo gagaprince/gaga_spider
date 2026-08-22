@@ -13,6 +13,8 @@ import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
 import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scraper.service';
 import { AcgnScraperService } from './acgn/acgn-scraper.service';
+import { AntbywScraperService } from './antbyw/antbyw-scraper.service';
+import { JcomicScraperService } from './jcomic/jcomic-scraper.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -28,6 +30,8 @@ export class ScraperController {
     private readonly manhwa18Scraper: Manhwa18ScraperService,
     private readonly dongmanmanhuaScraper: DongmanmanhuaScraperService,
     private readonly acgnScraper: AcgnScraperService,
+    private readonly antbywScraper: AntbywScraperService,
+    private readonly jcomicScraper: JcomicScraperService,
     @InjectRepository(ResourceSource)
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(SourceSite)
@@ -154,6 +158,20 @@ export class ScraperController {
     return { success: true, data: result };
   }
 
+  // ===== 蚂蚁搬运网 (www.antbyw.com) =====
+  @Post('antbyw/discover')
+  async discoverAntbyw() {
+    const result = await this.antbywScraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
+  // ===== JComic (jcomic.net) =====
+  @Post('jcomic/discover')
+  async discoverJcomic() {
+    const result = await this.jcomicScraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   // ===== 路由解析 =====
   private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
@@ -173,6 +191,12 @@ export class ScraperController {
     }
     if (domain === 'comic.acgn.cc') {
       return this.acgnScraper;
+    }
+    if (domain === 'www.antbyw.com') {
+      return this.antbywScraper;
+    }
+    if (domain === 'jcomic.net') {
+      return this.jcomicScraper;
     }
     return this.webtoonsScraper;
   }

@@ -8,6 +8,7 @@ import {
   subscribeBookshelf,
 } from '../utils/bookshelf';
 import { Toast } from './BookshelfPage';
+import { CoverPlaceholder } from './CoverPlaceholder';
 
 export function MyBookshelfPage() {
   const navigate = useNavigate();
@@ -212,19 +213,7 @@ export function MyBookshelfPage() {
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
                     ) : (
-                      <div
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 40,
-                          color: '#ccc',
-                        }}
-                      >
-                        📖
-                      </div>
+                      <CoverPlaceholder fontSize={12} iconSize={32} />
                     )}
                     <span
                       style={{

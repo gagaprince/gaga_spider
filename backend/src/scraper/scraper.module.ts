@@ -7,6 +7,8 @@ import { NniaoomanScraperService } from './nniaooman/nniaooman-scraper.service';
 import { Manhwa18ScraperService } from './manhwa18/manhwa18-scraper.service';
 import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scraper.service';
 import { AcgnScraperService } from './acgn/acgn-scraper.service';
+import { AntbywScraperService } from './antbyw/antbyw-scraper.service';
+import { JcomicScraperService } from './jcomic/jcomic-scraper.service';
 import { ScraperInitializer } from './scraper-initializer.service';
 import { ScraperController } from './scraper.controller';
 import { SourceSite } from '../entities/source-site.entity';
@@ -46,6 +48,8 @@ import { SettingsModule } from '../settings/settings.module';
     Manhwa18ScraperService,
     DongmanmanhuaScraperService,
     AcgnScraperService,
+    AntbywScraperService,
+    JcomicScraperService,
     ScraperInitializer,
   ],
   exports: [
@@ -56,6 +60,8 @@ import { SettingsModule } from '../settings/settings.module';
     Manhwa18ScraperService,
     DongmanmanhuaScraperService,
     AcgnScraperService,
+    AntbywScraperService,
+    JcomicScraperService,
   ],
 })
 export class ScraperModule {}

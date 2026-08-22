@@ -362,13 +362,20 @@ function Card({ r, onClick }: { r: Resource; onClick: () => void }) {
               width: '100%',
               height: '100%',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 36,
-              color: '#ccc',
+              gap: 4,
+              fontSize: 11,
+              color: '#b2bec3',
+              background: 'linear-gradient(135deg, #f5f6fa 0%, #eef0f5 100%)',
             }}
           >
-            📖
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <span style={{ fontWeight: 500 }}>暂无封面</span>
           </div>
         )}
         <span style={badge(statusColors[r.status] || '#999', { top: 6, right: 6 })}>

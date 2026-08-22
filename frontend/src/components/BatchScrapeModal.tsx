@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type Resource } from '../api/client';
+import { CoverPlaceholder } from './CoverPlaceholder';
 
 interface BatchScrapeModalProps {
   onClose: () => void;
@@ -191,18 +192,25 @@ export function BatchScrapeModal({ onClose, onSuccess }: BatchScrapeModalProps) 
                     onChange={() => {}}
                     style={{ width: 18, height: 18, cursor: 'pointer' }}
                   />
-                  <img
-                    src={r.localCoverPath || r.coverUrl || ''}
-                    alt=""
+                  <div
                     style={{
                       width: 36,
                       height: 48,
-                      objectFit: 'cover',
                       borderRadius: 4,
-                      background: '#f0f0f0',
+                      overflow: 'hidden',
                       flexShrink: 0,
                     }}
-                  />
+                  >
+                    {r.localCoverPath || r.coverUrl ? (
+                      <img
+                        src={r.localCoverPath || r.coverUrl!}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <CoverPlaceholder fontSize={8} iconSize={16} />
+                    )}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{

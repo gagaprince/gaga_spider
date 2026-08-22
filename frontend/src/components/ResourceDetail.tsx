@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { getReadingProgress } from '../utils/readingProgress';
 import { isInBookshelf, subscribeBookshelf, toggleBookshelf } from '../utils/bookshelf';
+import { CoverPlaceholder } from './CoverPlaceholder';
 
 
 interface DetailData {
@@ -337,19 +338,7 @@ export function ResourceDetail() {
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 48,
-                color: '#ccc',
-              }}
-            >
-              📖
-            </div>
+            <CoverPlaceholder fontSize={14} iconSize={44} />
           )}
         </div>
 

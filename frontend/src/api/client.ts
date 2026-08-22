@@ -232,6 +232,18 @@ export const api = {
       { method: 'POST' },
     ),
 
+  discoverAntbyw: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/antbyw/discover',
+      { method: 'POST' },
+    ),
+
+  discoverJcomic: () =>
+    request<{ success: boolean; data: { discovered: number; new: number } }>(
+      '/scraper/jcomic/discover',
+      { method: 'POST' },
+    ),
+
   getTasks: (params?: { status?: string; page?: number; pageSize?: number }) => {
     const search = new URLSearchParams();
     if (params?.status) search.set('status', params.status);

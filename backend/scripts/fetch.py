@@ -4,14 +4,38 @@ import sys
 import json
 import urllib.request
 import urllib.parse
+import urllib.error
+import http.cookiejar
 import gzip
 import io
+import os
+import tempfile
+
+COOKIE_FILE = os.path.join(tempfile.gettempdir(), "gaga_spider_cookies.txt")
+
+
+def _build_opener():
+    cj = http.cookiejar.MozillaCookieJar(COOKIE_FILE)
+    if os.path.exists(COOKIE_FILE):
+        try:
+            cj.load(ignore_discard=True, ignore_expires=True)
+        except Exception:
+            pass
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    return opener, cj
+
+
+def _save_cookies(cj):
+    try:
+        cj.save(ignore_discard=True, ignore_expires=True)
+    except Exception:
+        pass
 
 def encode_url(url):
     """URL-encode non-ASCII characters in URL path while preserving query params."""
     parsed = urllib.parse.urlsplit(url)
-    # Encode the path portion (handles Chinese chars), keep query as-is
-    encoded_path = urllib.parse.quote(parsed.path, safe="/")
+    # Encode non-ASCII chars in the path while preserving existing %XX sequences
+    encoded_path = urllib.parse.quote(parsed.path, safe="/%")
     encoded = urllib.parse.urlunsplit((
         parsed.scheme, parsed.netloc, encoded_path, parsed.query, parsed.fragment
     ))
@@ -29,13 +53,15 @@ def fetch(url, headers=None, method="GET"):
     if headers:
         default_headers.update(headers)
 
+    opener, cj = _build_opener()
     req = urllib.request.Request(url, headers=default_headers, method=method)
     try:
-        resp = urllib.request.urlopen(req, timeout=30)
+        resp = opener.open(req, timeout=30)
         data = resp.read()
         if resp.headers.get("Content-Encoding") == "gzip":
             data = gzip.decompress(data)
         body = data.decode("utf-8", errors="replace")
+        _save_cookies(cj)
         result = {
             "status": resp.status,
             "url": resp.url,
@@ -43,6 +69,7 @@ def fetch(url, headers=None, method="GET"):
         }
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
+        _save_cookies(cj)
         result = {"status": e.code, "url": url, "body": body, "error": str(e)}
     except Exception as e:
         result = {"status": 0, "url": url, "body": "", "error": str(e)}
@@ -60,10 +87,12 @@ def download(url, filepath, headers=None, timeout=10):
     if headers:
         default_headers.update(headers)
 
+    opener, cj = _build_opener()
     req = urllib.request.Request(url, headers=default_headers)
     try:
-        resp = urllib.request.urlopen(req, timeout=timeout)
+        resp = opener.open(req, timeout=timeout)
         data = resp.read()
+        _save_cookies(cj)
         with open(filepath, "wb") as f:
             f.write(data)
         result = {"status": resp.status, "size": len(data), "filepath": filepath}
