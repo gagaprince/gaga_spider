@@ -9,6 +9,7 @@ import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scrap
 import { AcgnScraperService } from './acgn/acgn-scraper.service';
 import { AntbywScraperService } from './antbyw/antbyw-scraper.service';
 import { JcomicScraperService } from './jcomic/jcomic-scraper.service';
+import { Rman8ScraperService } from './rman8/rman8-scraper.service';
 import { ScraperInitializer } from './scraper-initializer.service';
 import { ScraperController } from './scraper.controller';
 import { SourceSite } from '../entities/source-site.entity';
@@ -50,6 +51,7 @@ import { SettingsModule } from '../settings/settings.module';
     AcgnScraperService,
     AntbywScraperService,
     JcomicScraperService,
+    Rman8ScraperService,
     ScraperInitializer,
   ],
   exports: [
@@ -62,6 +64,7 @@ import { SettingsModule } from '../settings/settings.module';
     AcgnScraperService,
     AntbywScraperService,
     JcomicScraperService,
+    Rman8ScraperService,
   ],
 })
 export class ScraperModule {}

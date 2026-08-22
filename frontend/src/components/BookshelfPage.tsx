@@ -173,6 +173,8 @@ export function BookshelfPage() {
                     ? await api.discoverAntbyw()
                     : discoverDomain === 'jcomic.net'
                       ? await api.discoverJcomic()
+                      : discoverDomain === 'rman8.com'
+                        ? await api.discoverRman8()
               : await api.discoverManhuazhan();
       showToast(`目录抓取完成: 发现 ${resp.data.discovered} 部, 新增 ${resp.data.new} 部`);
       goToPage(1, true);

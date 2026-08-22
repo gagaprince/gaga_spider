@@ -17,6 +17,7 @@ import { ManhuazhanScraperService } from '../scraper/manhuazhan/manhuazhan-scrap
 import { NniaoomanScraperService } from '../scraper/nniaooman/nniaooman-scraper.service';
 import { DongmanmanhuaScraperService } from '../scraper/dongmanmanhua/dongmanmanhua-scraper.service';
 import { AcgnScraperService } from '../scraper/acgn/acgn-scraper.service';
+import { Rman8ScraperService } from '../scraper/rman8/rman8-scraper.service';
 
 @Controller('tasks')
 export class TaskController {
@@ -33,6 +34,8 @@ export class TaskController {
     @Inject(forwardRef(() => DongmanmanhuaScraperService))
     private readonly dongmanmanhuaScraper: DongmanmanhuaScraperService,
     private readonly acgnScraper: AcgnScraperService,
+    @Inject(forwardRef(() => Rman8ScraperService))
+    private readonly rman8Scraper: Rman8ScraperService,
   ) {}
 
   @Get()
@@ -124,6 +127,18 @@ export class TaskController {
           config.maxChapters ?? 0,
         )
         .catch(() => {});
+    } else if (scraper instanceof Rman8ScraperService) {
+      const config = (newTask.config ?? {}) as {
+        bookId?: string;
+        maxChapters?: number;
+      };
+      this.rman8Scraper
+        .scrapeOneWithTask(
+          newTask.id,
+          config.bookId ?? '',
+          config.maxChapters ?? 0,
+        )
+        .catch(() => {});
     } else {
       const config = (newTask.config ?? {}) as {
         titleNo?: number;
@@ -165,6 +180,9 @@ export class TaskController {
     }
     if (domain === 'comic.acgn.cc') {
       return this.acgnScraper;
+    }
+    if (domain === 'rman8.com') {
+      return this.rman8Scraper;
     }
     return this.webtoonsScraper;
   }

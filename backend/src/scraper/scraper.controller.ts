@@ -15,6 +15,7 @@ import { DongmanmanhuaScraperService } from './dongmanmanhua/dongmanmanhua-scrap
 import { AcgnScraperService } from './acgn/acgn-scraper.service';
 import { AntbywScraperService } from './antbyw/antbyw-scraper.service';
 import { JcomicScraperService } from './jcomic/jcomic-scraper.service';
+import { Rman8ScraperService } from './rman8/rman8-scraper.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResourceSource } from '../entities/resource-source.entity';
@@ -32,6 +33,7 @@ export class ScraperController {
     private readonly acgnScraper: AcgnScraperService,
     private readonly antbywScraper: AntbywScraperService,
     private readonly jcomicScraper: JcomicScraperService,
+    private readonly rman8Scraper: Rman8ScraperService,
     @InjectRepository(ResourceSource)
     private readonly resourceSourceRepo: Repository<ResourceSource>,
     @InjectRepository(SourceSite)
@@ -172,6 +174,13 @@ export class ScraperController {
     return { success: true, data: result };
   }
 
+  // ===== 肉漫屋 (rman8.com) =====
+  @Post('rman8/discover')
+  async discoverRman8() {
+    const result = await this.rman8Scraper.discoverCatalog();
+    return { success: true, data: result };
+  }
+
   // ===== 路由解析 =====
   private resolveScraperByDomain(domain?: string) {
     if (domain === 'www.dongmanhi.com') {
@@ -197,6 +206,9 @@ export class ScraperController {
     }
     if (domain === 'jcomic.net') {
       return this.jcomicScraper;
+    }
+    if (domain === 'rman8.com') {
+      return this.rman8Scraper;
     }
     return this.webtoonsScraper;
   }
